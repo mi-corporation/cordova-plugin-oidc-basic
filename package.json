@@ -1,0 +1,26 @@
+{
+  "name": "cordova-plugin-oidc-basic",
+  "version": "0.0.1",
+  "description": "Interfaces with OpenID Connect providers using native frameworks",
+  "cordova": {
+    "id": "cordova-plugin-oidc-basic",
+    "platforms": [
+      "windows"
+    ]
+  },
+  "keywords": [
+    "openid connect",
+    "oidc",
+    "oauth",
+    "cordova",
+    "ecosystem:cordova",
+    "cordova-ios",
+    "cordova-android",
+    "cordova-windows",
+    "cordova-browser"
+  ],
+  "engines": {},
+  "author": "Tim Hambourger",
+  "license": "MIT",
+  "dependencies": {}
+}

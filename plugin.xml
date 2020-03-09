@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="cordova-plugin-oidc-basic"
+        xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        version="0.0.1">
+
+    <name>OpenID Connect Basic</name>
+
+    <description>Interfaces with OpenID Connect providers using native frameworks</description>
+
+    <repo></repo>
+
+    <keywords>OpendID Connect, OIDC, OAuth</keywords>
+
+    <license>MIT</license>
+
+    <author>Tim Hambourger</author>
+
+    <!-- cordova -->
+    <engines>
+    </engines>
+
+    <!-- interface -->
+    <js-module src="www/oidc.js" name="OIDC">
+        <clobbers target="cordova.plugins.oidc.basic" />
+    </js-module>
+
+    <!-- ios -->
+    <!-- <platform name="ios">
+        <config-file target="config.xml" parent="/*">
+            <feature name="OIDCBasic">
+                <param name="ios-package" value="OIDCBasic"/>
+            </feature>
+        </config-file>
+    </platform> -->
+
+    <!-- android -->
+    <!-- <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="OIDCBasic">
+                <param name="android-package" value="com.mico.miapp.oidc.basic"/>
+            </feature>
+        </config-file>
+
+        <preference name="ANDROID_SUPPORT_V4_VERSION" default="28.+"/>
+
+        <framework src="com.android.support:support-v4:$ANDROID_SUPPORT_V4_VERSION"/>
+    </platform> -->
+
+    <!-- windows -->
+    <platform name="windows">
+        <js-module src="src/windows/OIDCProxy.js" name="OIDCProxy">
+            <merges target="" />
+        </js-module>
+    </platform>
+</plugin>
