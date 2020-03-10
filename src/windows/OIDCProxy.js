@@ -1,3 +1,7 @@
+/**
+ * Very much patterned off of AppAuth-iOS: https://github.com/openid/AppAuth-iOS
+ */
+
 var Web = Windows.Security.Authentication.Web;
 
 var ErrorType = {
@@ -77,6 +81,7 @@ function buildAuthorizationRequestUrl(req, callbackUri) {
 }
 
 function buildSuccessfulAuthorizationResponse(responseUrl) {
+    // Cf https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationResponse.m
     var query = responseUrl.searchParams;
     return {
         authorizationCode: query.get(QUERY_KEY_CODE),
@@ -110,6 +115,7 @@ function buildFailedAuthorizationResponse(responseUrl) {
 
 function isSuccessfulAuthorizationResponse(responseUrl) {
     // Providers are required to set the error query string key in case of errors.
+    // See https://tools.ietf.org/html/rfc6749#section-4.1.2.1
     return !responseUrl.searchParams.get(QUERY_KEY_ERROR);
 }
 
