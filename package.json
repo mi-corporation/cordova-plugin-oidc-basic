@@ -22,5 +22,8 @@
   "engines": {},
   "author": "Tim Hambourger",
   "license": "MIT",
-  "dependencies": {}
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^6.8.0"
+  }
 }

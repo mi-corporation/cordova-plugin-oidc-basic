@@ -2,6 +2,8 @@
  * Very much patterned off of AppAuth-iOS: https://github.com/openid/AppAuth-iOS
  */
 
+ /* global Windows */
+
 var Web = Windows.Security.Authentication.Web;
 
 var ErrorType = {
@@ -32,7 +34,7 @@ var QUERY_KEY_SCOPE = "scope";
 var QUERY_KEY_STATE = "state";
 var QUERY_KEY_TOKEN_TYPE = "token_type";
 
-function buildAuthorizationRequestUrl(req, callbackUri) {
+function buildAuthorizationRequestUrl(req) {
     // Cf https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m
     // (search "authorizationRequestURL")
     var query = new URLSearchParams();
