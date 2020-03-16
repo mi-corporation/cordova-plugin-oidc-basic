@@ -26,13 +26,16 @@ static id<OIDExternalUserAgentSession> currentAuthorizationFlow = nil;
 
 // Have to register to handle redirections. See https://github.com/openid/AppAuth-iOS#authorizing-ios
 // Use method swizzling to respect any existing application:openURL:options: implementation.
+// NOTE: This registration code is only needed to support iOS 10 and below. Check
+// https://github.com/openid/AppAuth-iOS/blob/master/Source/iOS/OIDExternalUserAgentIOS.m and
+// note the handling for different iOS versions in -presentExternalUserAgentRequest:session:.
+// For iOS 11+, that method calls -resumeExternalUserAgentFlowWithURL: itself.
 @implementation AppDelegate (OIDCBasicAppDelegate)
 
 -(BOOL)oidcBasicApplication:(UIApplication *)app
                     openURL:(NSURL *)url
                     options:(NSDictionary<NSString *, id> *)options {
     if ([currentAuthorizationFlow resumeExternalUserAgentFlowWithURL:url]) {
-        currentAuthorizationFlow = nil;
         return YES;
     }
     return [self oidcBasicApplication:app openURL:url options:options];
@@ -64,6 +67,8 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 @implementation OIDCBasic
 
 -(void)presentAuthorizationRequest:(CDVInvokedUrlCommand *)command {
+    // Jump to background thread to avoid Cordova warnings about blocking the main thread.
+    // I suspect generation of state, nonce, codeVerifier, and codeChallenge dominate the CPU time here.
     [self.commandDelegate runInBackground:^{
         NSDictionary * reqParams = [command argumentAtIndex:0 withDefault:nil andClass:[NSDictionary class]];
 
@@ -76,37 +81,54 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
         }
 
         OIDAuthorizationRequest *request = [self authorizationRequestForJSParams:reqParams];
-        OIDAuthorizationCallback callback = ^(OIDAuthorizationResponse *response, NSError *error) {
-            CDVPluginResult *result;
-            if (response) {
-                NSDictionary *json = [self jsonForSuccessfulAuthorizationResponse:response];
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
-            } else {
-                NSDictionary *json = [self jsonForAuthorizationError:error];
-                result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
-            }
+
+        // Bail if an authorization flow is already in progress
+        if (currentAuthorizationFlow) {
+            NSDictionary *json = [self jsonForAuthorizationFlowAlreadyInProgress];
+            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
             [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-        };
-
-        @synchronized (self) {
-            if (currentAuthorizationFlow) {
-                NSDictionary *json = [self jsonForAuthorizationFlowAlreadyInProgress];
-                CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
-                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-                return;
-            }
-
-            // Initiate the authorizationRequest. NOTE: We call OIDAuthorizationService's
-            // presentAuthorizationRequest:etc directly rather than using OIDAuthState's
-            // authStateByPresentingAuthorizationRequest:etc helper as OIDAuthState assumes the entire
-            // flow should be run on device, including the token exchange. Whereas the goal of this plugin
-            // is just to expose the authorization request piece of the flow. We may later add a separate
-            // method for performing the token exchange on device.
-            currentAuthorizationFlow =
-                [OIDAuthorizationService presentAuthorizationRequest:request
-                                            presentingViewController:self.viewController
-                                                            callback:callback];
+            return;
         }
+
+        // Now jump back to the main thread to present the authorization request UI. This avoids warnings
+        // from the Main Thread Checker about performing UI updates on a background thread.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // Lock to avoid races initiating a new authorization flow
+            @synchronized (self) {
+                // Re-check that we're the only authorization flow now that we're in the synchronized section
+                if (currentAuthorizationFlow) {
+                    NSDictionary *json = [self jsonForAuthorizationFlowAlreadyInProgress];
+                    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
+                    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                    return;
+                }
+
+                OIDAuthorizationCallback callback = ^(OIDAuthorizationResponse *response, NSError *error) {
+                    currentAuthorizationFlow = nil;
+
+                    CDVPluginResult *result;
+                    if (response) {
+                        NSDictionary *json = [self jsonForSuccessfulAuthorizationResponse:response];
+                        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
+                    } else {
+                        NSDictionary *json = [self jsonForAuthorizationError:error];
+                        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
+                    }
+                    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                };
+
+                // Initiate the authorizationRequest. NOTE: We call OIDAuthorizationService's
+                // -presentAuthorizationRequest:etc directly rather than using OIDAuthState's
+                // -authStateByPresentingAuthorizationRequest:etc helper as OIDAuthState assumes the entire
+                // flow should be run on device, including the token exchange. Whereas the goal of this plugin
+                // is just to expose the authorization request piece of the flow. We may later add a separate
+                // method for performing the token exchange on device.
+                currentAuthorizationFlow =
+                    [OIDAuthorizationService presentAuthorizationRequest:request
+                                                presentingViewController:self.viewController
+                                                                callback:callback];
+            }
+        });
     }];
 }
 
