@@ -123,7 +123,7 @@ function buildFailedAuthorizationResponse(responseUrl) {
     return {
         error: query.get(QUERY_KEY_ERROR),
         errorDescription: query.get(QUERY_KEY_ERROR_DESCRIPTION),
-        errorUrl: query.get(QUERY_KEY_ERROR_URI),
+        errorURL: query.get(QUERY_KEY_ERROR_URI),
         state: query.get(QUERY_KEY_STATE)
     };
 }

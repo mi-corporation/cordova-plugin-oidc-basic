@@ -111,7 +111,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                         NSDictionary *json = [self jsonForSuccessfulAuthorizationResponse:response];
                         result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
                     } else {
-                        NSDictionary *json = [self jsonForAuthorizationError:error];
+                        NSDictionary *json = [self jsonForAuthorizationError:error request:request];
                         result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
                     }
                     [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
@@ -255,10 +255,10 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     return @{
         // Don't pass back the configuration. Nothing interesting can happen to it.
         @"responseType":               [self jsonForNilable:request.responseType],
-        @"clientId":                   [self jsonForNilable:request.clientID],
+        @"clientID":                   [self jsonForNilable:request.clientID],
         @"clientSecret":               [self jsonForNilable:request.clientSecret],
         @"scope":                      [self jsonForNilable:request.scope],
-        @"redirectUrl":                [self jsonForNilable:request.redirectURL.absoluteString],
+        @"redirectURL":                [self jsonForNilable:request.redirectURL.absoluteString],
         @"state":                      [self jsonForNilable:request.state],
         @"nonce":                      [self jsonForNilable:request.nonce],
         @"codeVerifier":               [self jsonForNilable:request.codeVerifier],
@@ -268,10 +268,11 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     };
 }
 
--(NSDictionary *)jsonForAuthorizationError:(NSError *)error {
+-(NSDictionary *)jsonForAuthorizationError:(NSError *)error
+                                   request:(OIDAuthorizationRequest *)request {
     if ([error.domain isEqualToString:OIDOAuthAuthorizationErrorDomain]) {
         if (error.userInfo[OIDOAuthErrorResponseErrorKey]) {
-            NSDictionary *respJson = [self jsonForFailedAuthorizationResponse:error.userInfo[OIDOAuthErrorResponseErrorKey]];
+            NSDictionary *respJson = [self jsonForFailedAuthorizationResponse:error.userInfo[OIDOAuthErrorResponseErrorKey] request:request];
             return @{
                 @"type":         ERROR_RESPONSE,
                 @"message":      respJson[@"error"],
@@ -313,12 +314,14 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     };
 }
 
--(NSDictionary *)jsonForFailedAuthorizationResponse:(NSDictionary *)response {
+-(NSDictionary *)jsonForFailedAuthorizationResponse:(NSDictionary *)response
+                                            request:(OIDAuthorizationRequest *)request {
     if (!response) return nil;
     return @{
+        @"request":               [self jsonForNilable:[self jsonForReturnedRequest:request]],
         @"error":                 [self maybeString:response[OIDOAuthErrorFieldError]],
         @"errorDescription":      [self maybeString:response[OIDOAuthErrorFieldErrorDescription]],
-        @"errorUrl":              [self maybeString:response[OIDOAuthErrorFieldErrorURI]],
+        @"errorURL":              [self maybeString:response[OIDOAuthErrorFieldErrorURI]],
         @"state":                 [self maybeString:response[@"state"]]
     };
 }
