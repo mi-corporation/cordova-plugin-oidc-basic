@@ -46,6 +46,9 @@ exchange or need to do implicit flow.
 ## Configuring the redirectURL
 TODO...
 
+## TODO: Tips on CocoaPods usage on iOS
+TODO...
+
 ## Errors
 
 #### Error types
