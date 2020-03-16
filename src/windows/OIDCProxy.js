@@ -7,8 +7,13 @@
 var Web = Windows.Security.Authentication.Web;
 
 var ErrorType = {
+    // The calling code did something wrong, e.g. passed an invalid authorization request,
+    // such that the request couldn't even be sent to the authorization server
+    UNSENDABLE_REQUEST: "OIDC_UNSENDABLE_REQUEST",
     // The authorization server returned an error response as specified in https://tools.ietf.org/html/rfc6749#section-4.1.2.1
-    PROVIDER_ERROR: "OIDC_PROVIDER_ERROR",
+    ERROR_RESPONSE: "OIDC_ERROR_RESPONSE",
+    // The authorization server returned an invalid response not in keeping w/ the OpenID Connect spec
+    INVALID_RESPONSE: "OIDC_INVALID_RESPONSE",
     // There was an HTTP error completing the authorization request
     HTTP_ERROR: "OIDC_HTTP_ERROR",
     // The user cancelled the authorization request
@@ -19,6 +24,7 @@ var ErrorType = {
 
 var QUERY_KEY_ACCESS_TOKEN = "access_token";
 var QUERY_KEY_CLIENT_ID = "client_id";
+var QUERY_KEY_CLIENT_SECRET = "client_secret";
 var QUERY_KEY_CODE = "code";
 var QUERY_KEY_CODE_CHALLENGE = "code_challenge";
 var QUERY_KEY_CODE_CHALLENGE_METHOD = "code_challenge_method";
@@ -50,11 +56,15 @@ function buildAuthorizationRequestUrl(req) {
 
     // Required parameters.
     query.set(QUERY_KEY_RESPONSE_TYPE, req.responseType);
-    query.set(QUERY_KEY_CLIENT_ID, req.clientId);
+    query.set(QUERY_KEY_CLIENT_ID, req.clientID);
 
     // And optional parameters
-    if (req.redirectUrl) {
-        query.set(QUERY_KEY_REDIRECT_URI, req.redirectUrl);
+    if (req.clientSecret) {
+        query.set(QUERY_KEY_CLIENT_SECRET, req.clientSecret);
+    }
+
+    if (req.redirectURL) {
+        query.set(QUERY_KEY_REDIRECT_URI, req.redirectURL);
     }
 
     if (req.scope) {
@@ -86,6 +96,7 @@ function buildSuccessfulAuthorizationResponse(responseUrl) {
     // Cf https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationResponse.m
     var query = responseUrl.searchParams;
     return {
+        // TODO: Attach request too
         authorizationCode: query.get(QUERY_KEY_CODE),
         state: query.get(QUERY_KEY_STATE),
         accessToken: query.get(QUERY_KEY_ACCESS_TOKEN),
@@ -93,13 +104,15 @@ function buildSuccessfulAuthorizationResponse(responseUrl) {
         tokenType: query.get(QUERY_KEY_TOKEN_TYPE),
         idToken: query.get(QUERY_KEY_ID_TOKEN),
         scope: query.get(QUERY_KEY_SCOPE),
+        // TODO: additionParameters
     };
 }
 
 function computeExpirationDate(expiresIn) {
     if (typeof expiresIn === 'number') {
-        // expiresIn measures expiration from now in seconds
-        return new Date(Date.now() + expiresIn * 1000);
+        // expiresIn measures expiration from now in seconds. We send Dates to JS as milliseconds
+        // since 1970, since that is what the Javascript Date constructor expects.
+        return new Date(Date.now() + expiresIn * 1000).getTime();
     } else {
         return expiresIn;
     }
@@ -125,11 +138,17 @@ module.exports = {
     presentAuthorizationRequest: function (success, fail, args) {
         try {
             var req = args[0];
+            // TODO: validate request!
+
             // Even though we're using the authenticateAsync overload that
             // defaults the endUri to the current application's callback uri,
-            // we still have to set req.redirectUrl so the redirect_uri can
+            // we still have to set req.redirectURL so the redirect_uri can
             // get included in the requestUrl.
-            req.redirectUrl = Web.WebAuthenticationBroker.getCurrentApplicationCallbackUri().toString();
+            // TODO: We shouldn't just override redirectURL. Better idea: Expose a method to get the
+            // currentApplicationCallbackUri and give calling code a choice whether they wanna pass that
+            // back in or pass something else instead.
+            req.redirectURL = Web.WebAuthenticationBroker.getCurrentApplicationCallbackUri().toString();
+            // TODO: PKCE!
             var requestUrl = buildAuthorizationRequestUrl(req);
             Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, new Windows.Foundation.Uri(requestUrl)).done(function (result) {
                 if (result.responseStatus === Web.WebAuthenticationStatus.success) {
@@ -139,11 +158,12 @@ module.exports = {
                     // our current application's callback uri plus the query string set by the provider.
                     var responseUrl = new URL(result.responseData);
                     if (isSuccessfulAuthorizationResponse(responseUrl)) {
+                        // TODO: Validate state matches for partiy w/ AppAuth-iOS.
                         success(buildSuccessfulAuthorizationResponse(responseUrl));
                     } else {
                         var authResp = buildFailedAuthorizationResponse(responseUrl);
                         fail({
-                            type: ErrorType.PROVIDER_ERROR,
+                            type: ErrorType.ERROR_RESPONSE,
                             message: authResp.error,
                             details: authResp.errorDescription,
                             response: authResp
