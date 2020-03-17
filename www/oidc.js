@@ -34,6 +34,22 @@ module.exports = {
         };
 
         exec(success, fail, 'OIDCBasic', 'presentAuthorizationRequest', [req]);
+    },
+    presentEndSessionRequest: function (req, successCb, failCb) {
+        var success = function (endSessionResponse) {
+            if (successCb) successCb(new EndSessionResponse(endSessionResponse));
+        };
+
+        var fail = function (rawErr) {
+            if (failCb) {
+                var err = new Error(rawErr.type + ": " + rawErr.message);
+                err.oidcType = rawErr.type;
+                err.oidcDetails = rawErr.details;
+                failCb(err);
+            }
+        };
+
+        exec(success, fail, 'OIDCBasic', 'presentEndSessionRequest', [req]);
     }
 };
 
@@ -80,4 +96,17 @@ function AuthorizationErrorResponse(opts) {
     this.errorDescription = opts.errorDescription;
     this.errorURL = opts.errorURL;
     this.state = opts.state;
+}
+
+function EndSessionResponse(opts) {
+    this.request = opts.request ? new EndSessionResponseRequest(opts.request) : null;
+    this.state = opts.state;
+    this.additionalParameters = opts.additionalParameters;
+}
+
+function EndSessionResponseRequest(opts) {
+    this.postLogoutRedirectURL = opts.postLogoutRedirectURL;
+    this.idTokenHint = opts.idTokenHint;
+    this.state = opts.state;
+    this.additionalParameters = opts.additionalParameters;
 }

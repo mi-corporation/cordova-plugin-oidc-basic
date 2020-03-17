@@ -3,16 +3,21 @@
 #import "AppDelegate.h"
 #import "OIDCBasic.h"
 
-// Params from JS
+#include <TargetConditionals.h>
+
+// Params from JS (alphabetical please)
+static NSString * ADDITIONAL_PARAMETERS_PARAM = @"additionalParameters";
 static NSString * CONFIGURATION_PARAM = @"configuration";
 static NSString * CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM = @"authorizationEndpoint";
+static NSString * CONFIGURATION_END_SESSION_ENDPOINT_PARAM = @"endSessionEndpoint";
 static NSString * CLIENT_ID_PARAM = @"clientID";
 static NSString * CLIENT_SECRET_PARAM = @"clientSecret";
-static NSString * SCOPE_PARAM = @"scope";
-static NSString * STATE_PARAM = @"state";
+static NSString * ID_TOKEN_HINT_PARAM = @"idTokenHint";
+static NSString * POST_LOGOUT_REDIRECT_URL_PARAM = @"postLogoutRedirectURL";
 static NSString * REDIRECT_URL_PARAM = @"redirectURL";
 static NSString * RESPONSE_TYPE_PARAM = @"responseType";
-static NSString * ADDITIONAL_PARAMETERS_PARAM = @"additionalParameters";
+static NSString * SCOPE_PARAM = @"scope";
+static NSString * STATE_PARAM = @"state";
 
 // Error types
 static NSString * UNSENDABLE_REQUEST = @"OIDC_UNSENDABLE_REQUEST";
@@ -66,6 +71,8 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
 @implementation OIDCBasic
 
+// presentAuthorizationRequest
+
 -(void)presentAuthorizationRequest:(CDVInvokedUrlCommand *)command {
     // Jump to background thread to avoid Cordova warnings about blocking the main thread.
     // I suspect generation of state, nonce, codeVerifier, and codeChallenge dominate the CPU time here.
@@ -74,7 +81,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
         NSMutableArray<NSString *> *validationErrors;
         if (![self validateAuthorizationRequestParams:reqParams errors:&validationErrors]) {
-            NSDictionary *json = [self jsonForInvalidAuthorizationRequest:validationErrors];
+            NSDictionary *json = [self jsonForRequestValidationErrors:validationErrors];
             CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
             [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             return;
@@ -82,53 +89,31 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
         OIDAuthorizationRequest *request = [self authorizationRequestForJSParams:reqParams];
 
-        // Bail if an authorization flow is already in progress
-        if (currentAuthorizationFlow) {
-            NSDictionary *json = [self jsonForAuthorizationFlowAlreadyInProgress];
-            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-            return;
-        }
+        [self launchAuthorizationFlowForCommand:command flow:^{
+            OIDAuthorizationCallback callback = ^(OIDAuthorizationResponse *response, NSError *error) {
+                currentAuthorizationFlow = nil;
 
-        // Now jump back to the main thread to present the authorization request UI. This avoids warnings
-        // from the Main Thread Checker about performing UI updates on a background thread.
-        dispatch_async(dispatch_get_main_queue(), ^{
-            // Lock to avoid races initiating a new authorization flow
-            @synchronized (self) {
-                // Re-check that we're the only authorization flow now that we're in the synchronized section
-                if (currentAuthorizationFlow) {
-                    NSDictionary *json = [self jsonForAuthorizationFlowAlreadyInProgress];
-                    CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
-                    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-                    return;
+                CDVPluginResult *result;
+                if (response) {
+                    NSDictionary *json = [self jsonForSuccessfulAuthorizationResponse:response];
+                    result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
+                } else {
+                    NSDictionary *json = [self jsonForAuthorizationError:error request:request];
+                    result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
                 }
+                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            };
 
-                OIDAuthorizationCallback callback = ^(OIDAuthorizationResponse *response, NSError *error) {
-                    currentAuthorizationFlow = nil;
-
-                    CDVPluginResult *result;
-                    if (response) {
-                        NSDictionary *json = [self jsonForSuccessfulAuthorizationResponse:response];
-                        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
-                    } else {
-                        NSDictionary *json = [self jsonForAuthorizationError:error request:request];
-                        result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
-                    }
-                    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-                };
-
-                // Initiate the authorizationRequest. NOTE: We call OIDAuthorizationService's
-                // -presentAuthorizationRequest:etc directly rather than using OIDAuthState's
-                // -authStateByPresentingAuthorizationRequest:etc helper as OIDAuthState assumes the entire
-                // flow should be run on device, including the token exchange. Whereas the goal of this plugin
-                // is just to expose the authorization request piece of the flow. We may later add a separate
-                // method for performing the token exchange on device.
-                currentAuthorizationFlow =
-                    [OIDAuthorizationService presentAuthorizationRequest:request
-                                                presentingViewController:self.viewController
-                                                                callback:callback];
-            }
-        });
+            // Initiate the authorizationRequest. NOTE: We call OIDAuthorizationService's
+            // -presentAuthorizationRequest:etc directly rather than using OIDAuthState's
+            // -authStateByPresentingAuthorizationRequest:etc helper as OIDAuthState assumes the entire
+            // flow should be run on device, including the token exchange. Whereas the goal of this plugin
+            // is just to expose the authorization request piece of the flow. We may later add a separate
+            // method for performing the token exchange on device.
+            return [OIDAuthorizationService presentAuthorizationRequest:request
+                                               presentingViewController:self.viewController
+                                                               callback:callback];
+        }];
     }];
 }
 
@@ -150,11 +135,13 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                     [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param is required", CONFIGURATION_PARAM, CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]];
                 } else if (![configParams[CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM] isKindOfClass:[NSString class]]) {
                     [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param must be a string", CONFIGURATION_PARAM, CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]];
+                } else if (![NSURL URLWithString:configParams[CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]]) {
+                    [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param must be a valid URL", CONFIGURATION_PARAM, CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]];
                 }
             }
         }
-        if (reqParams[STATE_PARAM] && ![reqParams[STATE_PARAM] isKindOfClass:[NSString class]]) {
-            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", STATE_PARAM]];
+        if (reqParams[RESPONSE_TYPE_PARAM] && ![reqParams[RESPONSE_TYPE_PARAM] isKindOfClass:[NSString class]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", RESPONSE_TYPE_PARAM]];
         }
         if (reqParams[CLIENT_ID_PARAM] && ![reqParams[CLIENT_ID_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", CLIENT_ID_PARAM]];
@@ -162,14 +149,18 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
         if (reqParams[CLIENT_SECRET_PARAM] && ![reqParams[CLIENT_SECRET_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", CLIENT_SECRET_PARAM]];
         }
-        if (reqParams[REDIRECT_URL_PARAM] && ![reqParams[REDIRECT_URL_PARAM] isKindOfClass:[NSString class]]) {
-            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", REDIRECT_URL_PARAM]];
+        if (reqParams[SCOPE_PARAM] && ![reqParams[SCOPE_PARAM] isKindOfClass:[NSString class]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", SCOPE_PARAM]];
         }
-        if (reqParams[REDIRECT_URL_PARAM] && ![reqParams[REDIRECT_URL_PARAM] isKindOfClass:[NSString class]]) {
-            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", REDIRECT_URL_PARAM]];
+        if (reqParams[REDIRECT_URL_PARAM]) {
+            if (![reqParams[REDIRECT_URL_PARAM] isKindOfClass:[NSString class]]) {
+                [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", REDIRECT_URL_PARAM]];
+            } else if (![NSURL URLWithString:reqParams[REDIRECT_URL_PARAM]]) {
+                [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a valid URL", REDIRECT_URL_PARAM]];
+            }
         }
-        if (reqParams[RESPONSE_TYPE_PARAM] && ![reqParams[RESPONSE_TYPE_PARAM] isKindOfClass:[NSString class]]) {
-            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", REDIRECT_URL_PARAM]];
+        if (reqParams[STATE_PARAM] && ![reqParams[STATE_PARAM] isKindOfClass:[NSString class]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", STATE_PARAM]];
         }
         if (reqParams[ADDITIONAL_PARAMETERS_PARAM] && ![reqParams[ADDITIONAL_PARAMETERS_PARAM] isKindOfClass:[NSDictionary class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a JS object", ADDITIONAL_PARAMETERS_PARAM]];
@@ -224,19 +215,10 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                                              additionalParameters:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
 }
 
--(NSDictionary *)jsonForInvalidAuthorizationRequest:(NSMutableArray<NSString *> *)validationErrors {
-    NSString *message = [@"Request contained the following validation errors: " stringByAppendingString:[validationErrors componentsJoinedByString:@", "]];
-    return @{
-        @"type":         UNSENDABLE_REQUEST,
-        @"message":      message,
-        @"details":      message
-    };
-}
-
 -(NSDictionary *)jsonForSuccessfulAuthorizationResponse:(OIDAuthorizationResponse *)response {
     if (!response) return nil;
     return @{
-        @"request":                      [self jsonForNilable:[self jsonForReturnedRequest:response.request]],
+        @"request":                      [self jsonForNilable:[self jsonForReturnedAuthorizationRequest:response.request]],
         @"authorizationCode":            [self jsonForNilable:response.authorizationCode],
         @"state":                        [self jsonForNilable:response.state],
         @"accessToken":                  [self jsonForNilable:response.accessToken],
@@ -250,7 +232,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
 // We return the request back to JS b/c AppAuth populates additional params on the request that calling
 // code might need to perform the code exchange, e.g. nonce, codeVerifier.
--(NSDictionary *)jsonForReturnedRequest:(OIDAuthorizationRequest *)request {
+-(NSDictionary *)jsonForReturnedAuthorizationRequest:(OIDAuthorizationRequest *)request {
     if (!request) return nil;
     return @{
         // Don't pass back the configuration. Nothing interesting can happen to it.
@@ -285,44 +267,236 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
             // the PROVIDER did something not in keeping w/ our understanding of OIDC (or that
             // a malicious party tried to modify the provider's response). Either way call that
             // an INVALID_RESPONSE.
-            return @{
-                @"type":         INVALID_RESPONSE,
-                @"message":      error.localizedDescription,
-                @"details":      error.localizedFailureReason ?: error.localizedDescription
-            };
+            return [self standardJSONForError:error type:INVALID_RESPONSE];
         }
     } else if ([error.domain isEqualToString:OIDGeneralErrorDomain]) {
         if (error.code == OIDErrorCodeNetworkError) {
-            return @{
-                @"type":         HTTP_ERROR,
-                @"message":      error.localizedDescription,
-                @"details":      error.localizedFailureReason ?: error.localizedDescription
-            };
+            return [self standardJSONForError:error type:HTTP_ERROR];
         } else if (error.code == OIDErrorCodeUserCanceledAuthorizationFlow) {
-            return @{
-                @"type":         USER_CANCELLED,
-                @"message":      error.localizedDescription,
-                @"details":      error.localizedFailureReason ?: error.localizedDescription
-            };
+            return [self standardJSONForError:error type:USER_CANCELLED];
         }
     }
 
-    return @{
-        @"type":         UNEXPECTED_ERROR,
-        @"message":      error.localizedDescription,
-        @"details":      error.localizedFailureReason ?: error.localizedDescription
-    };
+    return [self standardJSONForError:error type:UNEXPECTED_ERROR];
 }
 
 -(NSDictionary *)jsonForFailedAuthorizationResponse:(NSDictionary *)response
                                             request:(OIDAuthorizationRequest *)request {
     if (!response) return nil;
     return @{
-        @"request":               [self jsonForNilable:[self jsonForReturnedRequest:request]],
+        @"request":               [self jsonForNilable:[self jsonForReturnedAuthorizationRequest:request]],
         @"error":                 [self maybeString:response[OIDOAuthErrorFieldError]],
         @"errorDescription":      [self maybeString:response[OIDOAuthErrorFieldErrorDescription]],
         @"errorURL":              [self maybeString:response[OIDOAuthErrorFieldErrorURI]],
         @"state":                 [self maybeString:response[@"state"]]
+    };
+}
+
+
+// presentEndSessionRequest
+
+-(void)presentEndSessionRequest:(CDVInvokedUrlCommand *)command {
+    // Jump to background thread to avoid Cordova warnings about blocking the main thread.
+    [self.commandDelegate runInBackground:^{
+        NSDictionary * reqParams = [command argumentAtIndex:0 withDefault:nil andClass:[NSDictionary class]];
+
+        NSMutableArray<NSString *> *validationErrors;
+        if (![self validateEndSessionRequestParams:reqParams errors:&validationErrors]) {
+            NSDictionary *json = [self jsonForRequestValidationErrors:validationErrors];
+            CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
+            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            return;
+        }
+
+        OIDEndSessionRequest *request = [self endSessionRequestForJSParams:reqParams];
+
+        [self launchAuthorizationFlowForCommand:command flow:^{
+            OIDEndSessionCallback callback = ^(OIDEndSessionResponse *response, NSError *error) {
+                currentAuthorizationFlow = nil;
+
+                CDVPluginResult *result;
+                if (response) {
+                    NSDictionary *json = [self jsonForEndSessionResponse:response];
+                    result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
+                } else {
+                    NSDictionary *json = [self jsonForEndSessionError:error];
+                    result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
+                }
+                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+            };
+
+            return [self presentEndSessionRequest:request callback:callback];
+        }];
+    }];
+}
+
+-(id<OIDExternalUserAgentSession>)presentEndSessionRequest:(OIDEndSessionRequest *)request
+                                                  callback:(OIDEndSessionCallback)callback {
+    // Unlike for authorizationRequests, AppAuth doesn't expose a nice
+    // -presentEndSessionRequest:presentingViewController:callback: method for iOS. So we're inlining
+    // the equivalent logic here.
+    // See https://github.com/openid/AppAuth-iOS/blob/master/Source/iOS/OIDAuthorizationService%2BIOS.m
+    id<OIDExternalUserAgent> externalUserAgent;
+#if TARGET_OS_MACCATALYST
+  externalUserAgent = [[OIDExternalUserAgentCatalyst alloc] initWithPresentingViewController:self.viewController];
+#else // TARGET_OS_MACCATALYST
+  externalUserAgent = [[OIDExternalUserAgentIOS alloc] initWithPresentingViewController:self.viewController];
+#endif // TARGET_OS_MACCATALYST
+    return [OIDAuthorizationService presentEndSessionRequest:request externalUserAgent:externalUserAgent callback:callback];
+}
+
+-(BOOL)validateEndSessionRequestParams:reqParams
+                                errors:(NSMutableArray<NSString *> **)errors {
+    NSMutableArray<NSString *> *validationErrors = [[NSMutableArray alloc] init];
+
+    if (!reqParams) {
+        [validationErrors addObject:@"request params object is required"];
+    } else {
+        if (!reqParams[CONFIGURATION_PARAM]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param is required", CONFIGURATION_PARAM]];
+        } else {
+            if (![reqParams[CONFIGURATION_PARAM] isKindOfClass:[NSDictionary class]]) {
+                [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a JS object", CONFIGURATION_PARAM]];
+            } else {
+                NSDictionary *configParams = reqParams[CONFIGURATION_PARAM];
+                if (!configParams[CONFIGURATION_END_SESSION_ENDPOINT_PARAM]) {
+                    [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param is required", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM]];
+                } else if (![configParams[CONFIGURATION_END_SESSION_ENDPOINT_PARAM] isKindOfClass:[NSString class]]) {
+                    [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param must be a string", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM]];
+                } else if (![NSURL URLWithString:configParams[CONFIGURATION_END_SESSION_ENDPOINT_PARAM]]) {
+                    [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param must be a valid URL", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM]];
+                }
+            }
+        }
+        if (reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]) {
+            if (![reqParams[POST_LOGOUT_REDIRECT_URL_PARAM] isKindOfClass:[NSString class]]) {
+                [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", POST_LOGOUT_REDIRECT_URL_PARAM]];
+            } else if (![NSURL URLWithString:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]) {
+                [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a valid URL", POST_LOGOUT_REDIRECT_URL_PARAM]];
+            }
+        }
+        if (reqParams[ID_TOKEN_HINT_PARAM] && ![reqParams[ID_TOKEN_HINT_PARAM] isKindOfClass:[NSString class]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", ID_TOKEN_HINT_PARAM]];
+        }
+        if (reqParams[STATE_PARAM] && ![reqParams[STATE_PARAM] isKindOfClass:[NSString class]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", STATE_PARAM]];
+        }
+        if (reqParams[ADDITIONAL_PARAMETERS_PARAM] && ![reqParams[ADDITIONAL_PARAMETERS_PARAM] isKindOfClass:[NSDictionary class]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a JS object", ADDITIONAL_PARAMETERS_PARAM]];
+        }
+    }
+
+    *errors = validationErrors;
+    return validationErrors.count == 0;
+}
+
+-(OIDEndSessionRequest *)endSessionRequestForJSParams:(NSDictionary *)reqParams {
+    NSDictionary *configParams = reqParams[CONFIGURATION_PARAM];
+    NSURL *endSessionEndpoint = [NSURL URLWithString:configParams[CONFIGURATION_END_SESSION_ENDPOINT_PARAM]];
+    // As w/ -authorizationRequestForJSParams:, we sillily set both authorizationEndpoint and tokenEndpoint
+    // to our endSessionEndpoint, even though that's blatantly wrong, just so we can pass a non-nil NSURL
+    // that we know won't actually get accessed in the course of doing the end session request.
+    OIDServiceConfiguration *config =
+        [[OIDServiceConfiguration alloc] initWithAuthorizationEndpoint:endSessionEndpoint
+                                                         tokenEndpoint:endSessionEndpoint
+                                                                issuer:nil
+                                                  registrationEndpoint:nil
+                                                    endSessionEndpoint:endSessionEndpoint];
+    // Ditto -authorizationRequestForJSParams on letting calling code specify state and otherwise
+    // falling back to randomly-generated state. An extra wrinkle is that OIDEndSessionRequest
+    // doesn't expose its +generateState method in its header like OIDAuthorizationRequest does.
+    // So we use OIDAuthorizationRequest's implementation, which is identical. See
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m vs
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDEndSessionRequest.m
+    NSString *state = reqParams[STATE_PARAM] ?: [OIDAuthorizationRequest generateState];
+    return [[OIDEndSessionRequest alloc] initWithConfiguration:config
+                                                   idTokenHint:reqParams[ID_TOKEN_HINT_PARAM]
+                                         postLogoutRedirectURL:[NSURL URLWithString:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]
+                                                         state:state
+                                          additionalParameters:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
+}
+
+-(NSDictionary *)jsonForEndSessionResponse:(OIDEndSessionResponse *)response {
+    if (!response) return nil;
+    return @{
+        @"request":                    [self jsonForNilable:[self jsonForReturnedEndSessionRequest:response.request]],
+        @"state":                      [self jsonForNilable:response.state],
+        @"additionalParameters":       [self jsonForNilable:response.additionalParameters]
+    };
+}
+
+// As for authorization requests, we return the request back to JS. This is really just about being
+// consistent w/ the pattern for authorization requests. The only potentially interesting piece of
+// data that we generate on the native side for end session requests is the state param. But that's
+// already included as a response field, and AppAuth already validates that the request and response
+// state fields match before passing us the response. So there's nothing interesting calling code
+// could do w/ this request. 
+-(NSDictionary *)jsonForReturnedEndSessionRequest:(OIDEndSessionRequest *)request {
+    if (!request) return nil;
+    return @{
+        // Don't pass back the configuration. Nothing interesting can happen to it.
+        @"postLogoutRedirectURL":          [self jsonForNilable:request.postLogoutRedirectURL],
+        @"idTokenHint":                    [self jsonForNilable:request.idTokenHint],
+        @"state":                          [self jsonForNilable:request.state],
+        @"additionalParameters":           [self jsonForNilable:request.additionalParameters]
+    };
+}
+
+-(NSDictionary *)jsonForEndSessionError:(NSError *)error {
+    if ([error.domain isEqualToString:OIDOAuthAuthorizationErrorDomain]) {
+        if (error.code == OIDErrorCodeOAuthAuthorizationClientError) {
+            // Ditto -jsonForAuthorizationError:request: on OIDErrorCodeOAuthAuthorizationClientError
+            // really meaning INVALID_RESPONSE.
+            return [self standardJSONForError:error type:INVALID_RESPONSE];
+        }
+    } else if ([error.domain isEqualToString:OIDGeneralErrorDomain]) {
+        if (error.code == OIDErrorCodeNetworkError) {
+            return [self standardJSONForError:error type:HTTP_ERROR];
+        } else if (error.code == OIDErrorCodeUserCanceledAuthorizationFlow) {
+            return [self standardJSONForError:error type:USER_CANCELLED];
+        }
+    }
+
+    return [self standardJSONForError:error type:UNEXPECTED_ERROR];
+}
+
+
+// Utilities common to all request types
+
+-(void)launchAuthorizationFlowForCommand:(CDVInvokedUrlCommand *)command
+                                    flow:(id<OIDExternalUserAgentSession> (^)()) flow {
+    // Bail if an authorization flow is already in progress
+    if (currentAuthorizationFlow) {
+        NSDictionary *json = [self jsonForAuthorizationFlowAlreadyInProgress];
+        CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
+        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+        return;
+    }
+
+    // Now jump back to the main thread to present the authorization flow UI. This avoids warnings
+    // from the Main Thread Checker about performing UI updates on a background thread.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Lock to avoid races initiating a new authorization flow
+        @synchronized (self) {
+            // Re-check that we're the only authorization flow now that we're in the synchronized section
+            if (currentAuthorizationFlow) {
+                NSDictionary *json = [self jsonForAuthorizationFlowAlreadyInProgress];
+                CDVPluginResult *result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
+                [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+                return;
+            }
+
+            currentAuthorizationFlow = flow();
+        }
+    });
+}
+
+-(NSDictionary *)jsonForRequestValidationErrors:(NSMutableArray<NSString *> *)validationErrors {
+    NSString *message = [@"Request contained the following validation errors: " stringByAppendingString:[validationErrors componentsJoinedByString:@", "]];
+    return @{
+        @"type":         UNSENDABLE_REQUEST,
+        @"message":      message,
+        @"details":      message
     };
 }
 
@@ -331,6 +505,15 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
         @"type":         UNSENDABLE_REQUEST,
         @"message":      @"Cannot send this authorization request b/c another authorization flow is already in progress.",
         @"details":      @"Cannot send this authorization request b/c another authorization flow is already in progress."
+    };
+}
+
+-(NSDictionary *)standardJSONForError:(NSError *)error
+                                 type:(NSString *)type {
+    return @{
+        @"type":         type,
+        @"message":      error.localizedDescription,
+        @"details":      error.localizedFailureReason ?: error.localizedDescription
     };
 }
 
