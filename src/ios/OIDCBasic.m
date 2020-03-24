@@ -11,7 +11,6 @@ static NSString * CONFIGURATION_PARAM = @"configuration";
 static NSString * CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM = @"authorizationEndpoint";
 static NSString * CONFIGURATION_END_SESSION_ENDPOINT_PARAM = @"endSessionEndpoint";
 static NSString * CLIENT_ID_PARAM = @"clientID";
-static NSString * CLIENT_SECRET_PARAM = @"clientSecret";
 static NSString * ID_TOKEN_HINT_PARAM = @"idTokenHint";
 static NSString * POST_LOGOUT_REDIRECT_URL_PARAM = @"postLogoutRedirectURL";
 static NSString * REDIRECT_URL_PARAM = @"redirectURL";
@@ -140,14 +139,15 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                 }
             }
         }
-        if (reqParams[RESPONSE_TYPE_PARAM] && ![reqParams[RESPONSE_TYPE_PARAM] isKindOfClass:[NSString class]]) {
+        if (!reqParams[RESPONSE_TYPE_PARAM]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param is required", RESPONSE_TYPE_PARAM]];
+        } else if (![reqParams[RESPONSE_TYPE_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", RESPONSE_TYPE_PARAM]];
         }
-        if (reqParams[CLIENT_ID_PARAM] && ![reqParams[CLIENT_ID_PARAM] isKindOfClass:[NSString class]]) {
+        if (!reqParams[CLIENT_ID_PARAM]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"%@ param is required", CLIENT_ID_PARAM]];
+        } else if (![reqParams[CLIENT_ID_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", CLIENT_ID_PARAM]];
-        }
-        if (reqParams[CLIENT_SECRET_PARAM] && ![reqParams[CLIENT_SECRET_PARAM] isKindOfClass:[NSString class]]) {
-            [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", CLIENT_SECRET_PARAM]];
         }
         if (reqParams[SCOPE_PARAM] && ![reqParams[SCOPE_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", SCOPE_PARAM]];
@@ -203,7 +203,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     NSString *state = reqParams[STATE_PARAM] ?: [OIDAuthorizationRequest generateState];
     return [[OIDAuthorizationRequest alloc] initWithConfiguration:config
                                                          clientId:reqParams[CLIENT_ID_PARAM]
-                                                     clientSecret:reqParams[CLIENT_SECRET_PARAM]
+                                                     clientSecret:nil
                                                             scope:reqParams[SCOPE_PARAM]
                                                       redirectURL:[NSURL URLWithString:reqParams[REDIRECT_URL_PARAM]]
                                                      responseType:reqParams[RESPONSE_TYPE_PARAM]
@@ -212,7 +212,35 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                                                      codeVerifier:codeVerifier
                                                     codeChallenge:codeChallenge
                                               codeChallengeMethod:OIDOAuthorizationRequestCodeChallengeMethodS256
-                                             additionalParameters:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
+                                             additionalParameters:[self preprocessAuthorizationRequestAdditionalParams:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
+}
+
+// Pre-process additional parameters so that regardless of AppAuth behavior, we'll
+// enforce the behavior that known parameters must be set via the documented
+// params rather than additionalParameters param.
+-(NSDictionary<NSString *, NSString *> *)preprocessAuthorizationRequestAdditionalParams:(NSDictionary<NSString *, NSString *> *)params {
+    static NSString * const BLACKLISTED[] = {
+        @"scope",
+        @"response_type",
+        @"client_id",
+        @"redirect_uri",
+        @"state",
+        @"nonce",
+        @"code_challenge",
+        @"code_challenge_method"
+    };
+
+    static int BLACKLISTED_LENGTH = sizeof(BLACKLISTED) / sizeof(BLACKLISTED[0]);
+
+    if (params) {
+        NSMutableDictionary *processed = [[NSMutableDictionary alloc] initWithDictionary:params];
+        for (int i = 0; i < BLACKLISTED_LENGTH; i++) {
+            [processed removeObjectForKey:BLACKLISTED[i]];
+        }
+        return processed;
+    } else {
+        return nil;
+    }
 }
 
 -(NSDictionary *)jsonForSuccessfulAuthorizationResponse:(OIDAuthorizationResponse *)response {
@@ -238,7 +266,6 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
         // Don't pass back the configuration. Nothing interesting can happen to it.
         @"responseType":               [self jsonForNilable:request.responseType],
         @"clientID":                   [self jsonForNilable:request.clientID],
-        @"clientSecret":               [self jsonForNilable:request.clientSecret],
         @"scope":                      [self jsonForNilable:request.scope],
         @"redirectURL":                [self jsonForNilable:request.redirectURL.absoluteString],
         @"state":                      [self jsonForNilable:request.state],
@@ -413,7 +440,30 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                                                    idTokenHint:reqParams[ID_TOKEN_HINT_PARAM]
                                          postLogoutRedirectURL:[NSURL URLWithString:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]
                                                          state:state
-                                          additionalParameters:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
+                                          additionalParameters:[self preprocessEndSessionRequestAdditionalParams:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
+}
+
+// Pre-process additional parameters so that regardless of AppAuth behavior, we'll
+// enforce the behavior that known parameters must be set via the documented
+// params rather than additionalParameters param.
+-(NSDictionary<NSString *, NSString *> *)preprocessEndSessionRequestAdditionalParams:(NSDictionary<NSString *, NSString *> *)params {
+    static NSString * const BLACKLISTED[] = {
+        @"id_token_hint",
+        @"post_logout_redirect_uri",
+        @"state"
+    };
+
+    static int BLACKLISTED_LENGTH = sizeof(BLACKLISTED) / sizeof(BLACKLISTED[0]);
+
+    if (params) {
+        NSMutableDictionary *processed = [[NSMutableDictionary alloc] initWithDictionary:params];
+        for (int i = 0; i < BLACKLISTED_LENGTH; i++) {
+            [processed removeObjectForKey:BLACKLISTED[i]];
+        }
+        return processed;
+    } else {
+        return nil;
+    }
 }
 
 -(NSDictionary *)jsonForEndSessionResponse:(OIDEndSessionResponse *)response {

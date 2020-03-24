@@ -76,7 +76,6 @@ function AuthorizationSuccessResponse(opts) {
 function AuthorizationResponseRequest(opts) {
     this.responseType = opts.responseType;
     this.clientID = opts.clientID;
-    this.clientSecret = opts.clientSecret;
     this.scope = opts.scope;
     this.redirectURL = opts.redirectURL;
     this.state = opts.state;
