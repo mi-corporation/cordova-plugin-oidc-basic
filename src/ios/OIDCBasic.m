@@ -10,10 +10,10 @@ static NSString * ADDITIONAL_PARAMETERS_PARAM = @"additionalParameters";
 static NSString * CONFIGURATION_PARAM = @"configuration";
 static NSString * CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM = @"authorizationEndpoint";
 static NSString * CONFIGURATION_END_SESSION_ENDPOINT_PARAM = @"endSessionEndpoint";
-static NSString * CLIENT_ID_PARAM = @"clientID";
+static NSString * CLIENT_ID_PARAM = @"clientId";
 static NSString * ID_TOKEN_HINT_PARAM = @"idTokenHint";
-static NSString * POST_LOGOUT_REDIRECT_URL_PARAM = @"postLogoutRedirectURL";
-static NSString * REDIRECT_URL_PARAM = @"redirectURL";
+static NSString * POST_LOGOUT_REDIRECT_URL_PARAM = @"postLogoutRedirectUrl";
+static NSString * REDIRECT_URL_PARAM = @"redirectUrl";
 static NSString * RESPONSE_TYPE_PARAM = @"responseType";
 static NSString * SCOPE_PARAM = @"scope";
 static NSString * STATE_PARAM = @"state";
@@ -265,9 +265,9 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     return @{
         // Don't pass back the configuration. Nothing interesting can happen to it.
         @"responseType":               [self jsonForNilable:request.responseType],
-        @"clientID":                   [self jsonForNilable:request.clientID],
+        @"clientId":                   [self jsonForNilable:request.clientID],
         @"scope":                      [self jsonForNilable:request.scope],
-        @"redirectURL":                [self jsonForNilable:request.redirectURL.absoluteString],
+        @"redirectUrl":                [self jsonForNilable:request.redirectURL.absoluteString],
         @"state":                      [self jsonForNilable:request.state],
         @"nonce":                      [self jsonForNilable:request.nonce],
         @"codeVerifier":               [self jsonForNilable:request.codeVerifier],
@@ -485,7 +485,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     if (!request) return nil;
     return @{
         // Don't pass back the configuration. Nothing interesting can happen to it.
-        @"postLogoutRedirectURL":          [self jsonForNilable:request.postLogoutRedirectURL],
+        @"postLogoutRedirectUrl":          [self jsonForNilable:request.postLogoutRedirectURL],
         @"idTokenHint":                    [self jsonForNilable:request.idTokenHint],
         @"state":                          [self jsonForNilable:request.state],
         @"additionalParameters":           [self jsonForNilable:request.additionalParameters]

@@ -12,10 +12,10 @@ var req = {
     configuration: {
         authorizationEndpoint: "https://my-authorization-endpoint/authorize"
     },
-    clientID: "my-client-id",
+    clientId: "my-client-id",
     scope: "openid",
     state: "my-state", // or leave absent and the plugin will generate random state by default
-    redirectURL: "my-redirect-url", // see notes on redirectURL below
+    redirectUrl: "my-redirect-url", // see notes on redirectUrl below
     responseType: "code" // authorization code flow
 };
 // Initiate authorization request
@@ -43,7 +43,7 @@ TODO... Primarily authorization code flow. Implicit should work too but not heav
 no support for performing a separate token exchange on device. Either need a server to do the token
 exchange or need to do implicit flow.
 
-## Configuring the redirectURL
+## Configuring the redirectUrl
 TODO...
 
 ## TODO: Tips on CocoaPods usage on iOS

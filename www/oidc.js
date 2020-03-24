@@ -75,9 +75,9 @@ function AuthorizationSuccessResponse(opts) {
  */
 function AuthorizationResponseRequest(opts) {
     this.responseType = opts.responseType;
-    this.clientID = opts.clientID;
+    this.clientId = opts.clientId;
     this.scope = opts.scope;
-    this.redirectURL = opts.redirectURL;
+    this.redirectUrl = opts.redirectUrl;
     this.state = opts.state;
     this.nonce = opts.nonce;
     this.codeVerifier = opts.codeVerifier;
@@ -104,7 +104,7 @@ function EndSessionResponse(opts) {
 }
 
 function EndSessionResponseRequest(opts) {
-    this.postLogoutRedirectURL = opts.postLogoutRedirectURL;
+    this.postLogoutRedirectUrl = opts.postLogoutRedirectUrl;
     this.idTokenHint = opts.idTokenHint;
     this.state = opts.state;
     this.additionalParameters = opts.additionalParameters;

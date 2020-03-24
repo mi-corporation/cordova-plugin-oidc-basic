@@ -10,9 +10,9 @@ namespace OIDCBasicRuntimeComponent
 {
     public sealed class AuthorizationRequest
     {
-        public string ClientID { get; set; }
+        public string ClientId { get; set; }
         public string Scope { get; set; }
-        public Uri RedirectURL { get; set; }
+        public Uri RedirectUrl { get; set; }
         public string ResponseType { get; set; }
         public string State { get; set; }
         public string Nonce { get; set; }
@@ -20,6 +20,6 @@ namespace OIDCBasicRuntimeComponent
         public string CodeChallenge { get; set; }
         public string CodeChallengeMethod { get; set; }
         public IDictionary<string, string> AdditionalParameters { get; set; }
-        public Uri RequestURL { get; set; }
+        public Uri RequestUrl { get; set; }
     }
 }

@@ -13,9 +13,9 @@ namespace OIDCBasicRuntimeComponent
     public sealed class AuthorizationRequestParams
     {
         public AuthorizationServiceConfiguration Configuration { get; set; }
-        public string ClientID { get; set; }
+        public string ClientId { get; set; }
         public string Scope { get; set; }
-        public Uri RedirectURL { get; set; }
+        public Uri RedirectUrl { get; set; }
         public string ResponseType { get; set; }
         public string State { get; set; }
         public IDictionary<string, string> AdditionalParameters { get; set; }
@@ -39,9 +39,9 @@ namespace OIDCBasicRuntimeComponent
                 ProviderInformation = {
                     AuthorizeEndpoint = Configuration.AuthorizationEndpoint?.AbsoluteUri
                 },
-                ClientId = ClientID,
+                ClientId = ClientId,
                 Scope = Scope,
-                RedirectUri = RedirectURL?.AbsoluteUri
+                RedirectUri = RedirectUrl?.AbsoluteUri
             };
             var extraParams = GetOidcClientExtraParameters();
             var authState = await new OidcClient(options).PrepareLoginAsync(extraParams);
@@ -92,9 +92,9 @@ namespace OIDCBasicRuntimeComponent
             uriBuilder.Query = query.ToString();
 
             return new AuthorizationRequest {
-                ClientID = ClientID,
+                ClientId = ClientId,
                 Scope = Scope,
-                RedirectURL = RedirectURL,
+                RedirectUrl = RedirectUrl,
                 // Exposed only via query string
                 ResponseType = query.Get(OidcConstants.AuthorizeRequest.ResponseType),
                 // Exposed via AuthorizeState.State, but we'll read from query string to pick up our potential override
@@ -106,7 +106,7 @@ namespace OIDCBasicRuntimeComponent
                 // Exposed only via query string
                 CodeChallengeMethod = query.Get(OidcConstants.AuthorizeRequest.CodeChallengeMethod),
                 AdditionalParameters = extraParams,
-                RequestURL = uriBuilder.Uri
+                RequestUrl = uriBuilder.Uri
             };
         }
     }

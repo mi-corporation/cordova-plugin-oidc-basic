@@ -54,19 +54,19 @@ function validateAuthorizationRequestParams(reqParams, errors) {
         } else if (typeof reqParams.responseType !== "string") {
             errors.push("responseType param must be a string");
         }
-        if (reqParams.clientID === null || reqParams.clientID === undefined) {
-            errors.push("clientID param is required");
-        } else if (typeof reqParams.clientID !== "string") {
-            errors.push("clientID param must be a string");
+        if (reqParams.clientId === null || reqParams.clientId === undefined) {
+            errors.push("clientId param is required");
+        } else if (typeof reqParams.clientId !== "string") {
+            errors.push("clientId param must be a string");
         }
         if (reqParams.scope !== null && reqParams.scope !== undefined && typeof reqParams.scope !== "string") {
             errors.push("scope param must be a string");
         }
-        if (reqParams.redirectURL !== null && reqParams.redirectURL !== undefined) {
-            if (typeof reqParams.redirectURL !== "string") {
-                errors.push("redirectURL must be a string");
-            } else if (!isValidURL(reqParams.redirectURL)) {
-                errors.push("redirectURL must be a valid URL");
+        if (reqParams.redirectUrl !== null && reqParams.redirectUrl !== undefined) {
+            if (typeof reqParams.redirectUrl !== "string") {
+                errors.push("redirectUrl must be a string");
+            } else if (!isValidURL(reqParams.redirectUrl)) {
+                errors.push("redirectUrl must be a valid URL");
             }
         }
         if (reqParams.state !== null && reqParams.state !== undefined && typeof reqParams.state !== "string") {
@@ -90,9 +90,9 @@ function buildAuthorizationRequestParamsForJSParams(jsReqParams) {
     configuration.authorizationEndpoint = new Windows.Foundation.Uri(jsReqParams.configuration.authorizationEndpoint);
     var requestParams = new RtComponent.AuthorizationRequestParams();
     requestParams.configuration = configuration;
-    requestParams.clientID = jsReqParams.clientID;
+    requestParams.clientId = jsReqParams.clientId;
     requestParams.scope = jsReqParams.scope;
-    requestParams.redirectURL = jsReqParams.redirectURL ? new Windows.Foundation.Uri(jsReqParams.redirectURL) : null;
+    requestParams.redirectUrl = jsReqParams.redirectUrl ? new Windows.Foundation.Uri(jsReqParams.redirectUrl) : null;
     requestParams.responseType = jsReqParams.responseType;
     requestParams.state = jsReqParams.state;
     requestParams.additionalParameters = buildPropertySetForJSObj(jsReqParams.additionalParameters);
@@ -224,7 +224,7 @@ module.exports = {
             // and https://github.com/IdentityModel/IdentityModel.OidcClient/blob/master/src/Browser/IBrowser.cs
             requestParams.generateRequestAsync().then(function (_request) {
                 request = _request;
-                return Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, request.requestURL, request.redirectURL);
+                return Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, request.requestUrl, request.redirectUrl);
             }).done(function (result) {
                 if (result.responseStatus === Web.WebAuthenticationStatus.success) {
                     // WebAuthenticationStatus.success only means we got a response from the auth provider.
