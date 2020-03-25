@@ -212,7 +212,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                                                      codeVerifier:codeVerifier
                                                     codeChallenge:codeChallenge
                                               codeChallengeMethod:OIDOAuthorizationRequestCodeChallengeMethodS256
-                                             additionalParameters:[self preprocessAuthorizationRequestAdditionalParams:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
+                                             additionalParameters:[self preprocessAuthorizationRequestAdditionalParams:reqParams[ADDITIONAL_PARAMETERS_PARAM]]];
 }
 
 // Pre-process additional parameters so that regardless of AppAuth behavior, we'll
@@ -440,7 +440,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                                                    idTokenHint:reqParams[ID_TOKEN_HINT_PARAM]
                                          postLogoutRedirectURL:[NSURL URLWithString:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]
                                                          state:state
-                                          additionalParameters:[self preprocessEndSessionRequestAdditionalParams:reqParams[ADDITIONAL_PARAMETERS_PARAM]];
+                                          additionalParameters:[self preprocessEndSessionRequestAdditionalParams:reqParams[ADDITIONAL_PARAMETERS_PARAM]]];
 }
 
 // Pre-process additional parameters so that regardless of AppAuth behavior, we'll
