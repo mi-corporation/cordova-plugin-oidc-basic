@@ -56,7 +56,7 @@
         <js-module src="src/windows/endSessionResponse.js" />
         <js-module src="src/windows/isValidUrl.js" />
         <js-module src="src/windows/oidcConstants.js" />
-        <js-module src="src/windows/OIDCProxy.js" name="OIDCProxy">
+        <js-module src="src/windows/oidcProxy.js">
             <merges target="" />
         </js-module>
     </platform>
