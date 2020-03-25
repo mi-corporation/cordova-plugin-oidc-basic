@@ -1,6 +1,6 @@
 /**
- * A partial port of CryptoHelper class from IdentityModel.OidcClient (https://www.nuget.org/packages/IdentityModel.OidcClient/).
- * See https://github.com/IdentityModel/IdentityModel.OidcClient/blob/master/src/CryptoHelper.cs.
+ * A partial port of OIDTokenUtilities module from AppAuth-iOS (https://github.com/openid/AppAuth-iOS).
+ * See https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDTokenUtilities.m.
  */
 
  /* global Windows */
@@ -10,51 +10,45 @@ var CryptographicBuffer = Windows.Security.Cryptography.CryptographicBuffer;
 var HashAlgorithmNames = Windows.Security.Cryptography.Core.HashAlgorithmNames;
 var HashAlgorithmProvider = Windows.Security.Cryptography.Core.HashAlgorithmProvider;
 
-var OidcConstants = require("./oidcConstants");
-
 var sha256 = HashAlgorithmProvider.openAlgorithm(HashAlgorithmNames.sha256).createHash();
 
-function createState() {
-    return createUniqueId(16);
+/**
+ * Create a URL safe (and ASCII only) identifier encoding byteLength random bytes
+ */
+function createRandomId(byteLength) {
+    return encodeAsBase64UrlWithoutPadding(CryptographicBuffer.generateRandom(byteLength));
 }
-exports.createState = createState;
+exports.createRandomId = createRandomId;
 
-function createNonce() {
-    return createUniqueId(16);
+/**
+ * Compute an S256 code challenge as specified by https://tools.ietf.org/html/rfc7636#section-4.2.
+ * Calling code MUST ensure that the codeVerifier is ASCII only.
+ */
+function computeS256CodeChallenge(codeVerifier) {
+    return encodeAsBase64UrlWithoutPadding(computeSha256(codeVerifier));
 }
-exports.createNonce = createNonce;
+exports.computeS256CodeChallenge = computeS256CodeChallenge;
 
-function createPkceData() {
-    var codeVerifier = createUniqueId(16);
-    var codeChallenge = createCodeChallenge(codeVerifier);
-    return {
-        codeVerifier: codeVerifier,
-        codeChallenge: codeChallenge,
-        codeChallengeMethod: OidcConstants.CODE_CHALLENGE_METHOD_S256
-    };
+/**
+ * Get an IBuffer containing the SHA256 of the provided string.
+ */
+function computeSha256(inputStr) {
+    sha256.append(CryptographicBuffer.convertStringToBinary(inputStr, BinaryStringEncoding.utf8));
+    return sha256.getValueAndReset();
 }
-exports.createPkceData = createPkceData;
+exports.computeSha256 = computeSha256;
 
 var PLUS_SIGN = /\+/g;
 var FORWARD_SLASH = /\//g;
 
-function createCodeChallenge(codeVerifier) {
-    // Use the S256 method from https://tools.ietf.org/html/rfc7636#section-4.2
-    var buffer = CryptographicBuffer.convertStringToBinary(codeVerifier, BinaryStringEncoding.utf8);
-    sha256.append(buffer);
-    buffer = sha256.getValueAndReset();
-    var codeChallenge = CryptographicBuffer.encodeToBase64String(buffer);
-    // Need to produce a base64url-encoded string without padding.
-    // See https://tools.ietf.org/html/rfc7636#appendix-A
-    codeChallenge = codeChallenge.split("=")[0];
-    codeChallenge = codeChallenge.replace(PLUS_SIGN, "-");
-    codeChallenge = codeChallenge.replace(FORWARD_SLASH, "_");
-    return codeChallenge;
+/**
+ * Encode an IBuffer as a base64 URL without padding as specified by https://tools.ietf.org/html/rfc7636#appendix-A
+ */
+function encodeAsBase64UrlWithoutPadding(buffer) {
+    var base64 = CryptographicBuffer.encodeToBase64String(buffer);
+    base64 = base64.split("=")[0];
+    base64 = base64.replace(PLUS_SIGN, "-");
+    base64 = base64.replace(FORWARD_SLASH, "_");
+    return base64;
 }
-
-function createUniqueId(byteLength) {
-    var buffer = CryptographicBuffer.generateRandom(byteLength);
-    return CryptographicBuffer.encodeToHexString(buffer);
-}
-exports.createUniqueId = createUniqueId;
-
+exports.encodeAsBase64UrlWithoutPadding = encodeAsBase64UrlWithoutPadding;

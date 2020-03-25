@@ -16,12 +16,17 @@ function AuthorizationRequest(reqParams) {
     // (For what it's worth, I think that section applies more closely to web apps and that for native apps PKCE
     // defends against the same attacks in a more robust way. But I'd still recommend calling code make their state
     // opaque and non-guessable as an extra security measure.)
-    this.state = reqParams.state === null || reqParams.state === undefined ? CryptoUtils.createState() : reqParams.state;
-    this.nonce = CryptoUtils.createNonce();
-    var pkceData = CryptoUtils.createPkceData();
-    this.codeVerifier = pkceData.codeVerifier;
-    this.codeChallenge = pkceData.codeChallenge;
-    this.codeChallengeMethod = pkceData.codeChallengeMethod;
+    // NOTE: If we DO generate random state, we closely follow the method used by AppAuth-iOS.
+    // See https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m
+    this.state = reqParams.state === null || reqParams.state === undefined ? CryptoUtils.createRandomId(32) : reqParams.state;
+    // NOTE: nonce generation closely follows the method used by AppAuth-iOS.
+    // See https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m
+    this.nonce = CryptoUtils.createRandomId(32);
+    // NOTE: codeVerifier generation closely follows the method used by AppAuth-iOS.
+    // See https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m
+    this.codeVerifier = CryptoUtils.createRandomId(32);
+    this.codeChallenge = CryptoUtils.computeS256CodeChallenge(this.codeVerifier);
+    this.codeChallengeMethod = OidcConstants.CODE_CHALLENGE_METHOD_S256;
     this.additionalParameters = sanitizeAdditionalParams(reqParams.additionalParameters);
 }
 exports.AuthorizationRequest = AuthorizationRequest;
