@@ -48,9 +48,14 @@
 
     <!-- windows -->
     <platform name="windows">
+        <js-module src="src/windows/authorizationErrorResponse.js" />
+        <js-module src="src/windows/authorizationRequest.js" />
+        <js-module src="src/windows/authorizationSuccessResponse.js" />
+        <js-module src="src/windows/cryptoUtils.js" />
+        <js-module src="src/windows/isValidUrl.js" />
+        <js-module src="src/windows/oidcConstants.js" />
         <js-module src="src/windows/OIDCProxy.js" name="OIDCProxy">
             <merges target="" />
         </js-module>
-        <framework src="src/windows/OIDCBasicRuntimeComponent/OIDCBasicRuntimeComponent.csproj" custom="true" type="projectReference" />
     </platform>
 </plugin>

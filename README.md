@@ -3,7 +3,7 @@
 ## Dependencies
 This plugin aims to be a thin wrapper around the following libraries/APIs:
 - iOS -- [AppAuth-iOS](https://github.com/openid/AppAuth-iOS)
-- Windows -- The [Web Authentication Broker](https://docs.microsoft.com/en-us/uwp/api/Windows.Security.Authentication.Web.WebAuthenticationBroker) API. TODO: Preferrably will switch to [IdentityModel.OidcClient](https://github.com/IdentityModel/IdentityModel.OidcClient). Investigating supported UWP versions...
+- Windows -- The [Web Authentication Broker](https://docs.microsoft.com/en-us/uwp/api/Windows.Security.Authentication.Web.WebAuthenticationBroker) API.
 - Android -- TODO...
 
 ## Usage

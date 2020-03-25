@@ -93,7 +93,7 @@ function AuthorizationErrorResponse(opts) {
     this.request = opts.request ? new AuthorizationResponseRequest(opts.request) : null;
     this.error = opts.error;
     this.errorDescription = opts.errorDescription;
-    this.errorURL = opts.errorURL;
+    this.errorUrl = opts.errorUrl;
     this.state = opts.state;
 }
 

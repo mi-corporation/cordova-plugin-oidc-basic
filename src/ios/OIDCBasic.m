@@ -314,7 +314,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
         @"request":               [self jsonForNilable:[self jsonForReturnedAuthorizationRequest:request]],
         @"error":                 [self maybeString:response[OIDOAuthErrorFieldError]],
         @"errorDescription":      [self maybeString:response[OIDOAuthErrorFieldErrorDescription]],
-        @"errorURL":              [self maybeString:response[OIDOAuthErrorFieldErrorURI]],
+        @"errorUrl":              [self maybeString:response[OIDOAuthErrorFieldErrorURI]],
         @"state":                 [self maybeString:response[@"state"]]
     };
 }
