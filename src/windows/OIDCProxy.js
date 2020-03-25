@@ -9,6 +9,8 @@ var Web = Windows.Security.Authentication.Web;
 var AuthorizationErrorResponse = require("./authorizationErrorResponse").AuthorizationErrorResponse;
 var AuthorizationRequest = require("./authorizationRequest").AuthorizationRequest;
 var AuthorizationSuccessResponse = require("./authorizationSuccessResponse").AuthorizationSuccessResponse;
+var EndSessionRequest = require("./endSessionRequest").EndSessionRequest;
+var EndSessionResponse = require("./endSessionResponse").EndSessionResponse;
 
 var ErrorType = {
     // The calling code did something wrong, e.g. passed an invalid authorization request,
@@ -111,6 +113,31 @@ module.exports = {
                             fail(responseValidationErrorsResponse(errors2));
                         }
                     }
+                } else {
+                    fail(webAuthenticationBrokerErrorResponse(result));
+                }
+            });
+        } catch (e) {
+            fail(unexpectedErrorResponse(e));
+        }
+    },
+    presentEndSessionRequest: function (success, fail, args) {
+        try {
+            var reqParams = args[0];
+
+            var errors = [];
+            if (!EndSessionRequest.validateParams(reqParams, errors)) {
+                fail(requestValidationErrorsResponse(errors));
+                return;
+            }
+
+            var request = new EndSessionRequest(reqParams);
+            var requestUrl = new Windows.Foundation.Uri(request.buildRequestUrl());
+            var redirectUrl = request.postLogoutRedirectUrl !== null && request.postLogoutRedirectUrl !== undefined ? new Windows.Foundation.Uri(request.postLogoutRedirectUrl) : null;
+            Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, requestUrl, redirectUrl).done(function (result) {
+                if (result.responseStatus === Web.WebAuthenticationStatus.success) {
+                    var responseUrl = new URL(result.responseData);
+                    success(new EndSessionResponse(responseUrl, request));
                 } else {
                     fail(webAuthenticationBrokerErrorResponse(result));
                 }

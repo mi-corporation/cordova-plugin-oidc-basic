@@ -52,6 +52,8 @@
         <js-module src="src/windows/authorizationRequest.js" />
         <js-module src="src/windows/authorizationSuccessResponse.js" />
         <js-module src="src/windows/cryptoUtils.js" />
+        <js-module src="src/windows/endSessionRequest.js" />
+        <js-module src="src/windows/endSessionResponse.js" />
         <js-module src="src/windows/isValidUrl.js" />
         <js-module src="src/windows/oidcConstants.js" />
         <js-module src="src/windows/OIDCProxy.js" name="OIDCProxy">

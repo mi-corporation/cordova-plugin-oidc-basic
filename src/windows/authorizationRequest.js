@@ -63,15 +63,16 @@ AuthorizationRequest.validateParams = function (reqParams, errors) {
         }
         if (reqParams.redirectUrl !== null && reqParams.redirectUrl !== undefined) {
             if (typeof reqParams.redirectUrl !== "string") {
-                errors.push("redirectUrl must be a string");
+                errors.push("redirectUrl param must be a string");
             } else if (!isValidUrl(reqParams.redirectUrl)) {
-                errors.push("redirectUrl must be a valid URL");
+                errors.push("redirectUrl param must be a valid URL");
             }
         }
         if (reqParams.state !== null && reqParams.state !== undefined && typeof reqParams.state !== "string") {
             errors.push("state param must be a string");
         }
     }
+
     return errors.length === initLength;
 };
 
@@ -91,9 +92,15 @@ AuthorizationRequest.prototype.buildRequestUrl = function () {
     if (this.state) {
         query.set(OidcConstants.QUERY_KEY_STATE, this.state);
     }
-    query.set(OidcConstants.QUERY_KEY_NONCE, this.nonce);
-    query.set(OidcConstants.QUERY_KEY_CODE_CHALLENGE, this.codeChallenge);
-    query.set(OidcConstants.QUERY_KEY_CODE_CHALLENGE_METHOD, this.codeChallengeMethod);
+    if (this.nonce) {
+        query.set(OidcConstants.QUERY_KEY_NONCE, this.nonce);
+    }
+    if (this.codeChallenge) {
+        query.set(OidcConstants.QUERY_KEY_CODE_CHALLENGE, this.codeChallenge);
+    }
+    if (this.codeChallengeMethod) {
+        query.set(OidcConstants.QUERY_KEY_CODE_CHALLENGE_METHOD, this.codeChallengeMethod);
+    }
 
     if (this.additionalParameters) {
         for (var key in this.additionalParameters) {
