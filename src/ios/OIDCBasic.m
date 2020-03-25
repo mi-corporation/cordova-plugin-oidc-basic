@@ -485,7 +485,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     if (!request) return nil;
     return @{
         // Don't pass back the configuration. Nothing interesting can happen to it.
-        @"postLogoutRedirectUrl":          [self jsonForNilable:request.postLogoutRedirectURL],
+        @"postLogoutRedirectUrl":          [self jsonForNilable:request.postLogoutRedirectURL.absoluteString],
         @"idTokenHint":                    [self jsonForNilable:request.idTokenHint],
         @"state":                          [self jsonForNilable:request.state],
         @"additionalParameters":           [self jsonForNilable:request.additionalParameters]
