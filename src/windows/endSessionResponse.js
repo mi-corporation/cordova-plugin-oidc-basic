@@ -15,3 +15,19 @@ function EndSessionResponse(responseUrl, request) {
     this.additionalParameters = additionalParameters;
 }
 exports.EndSessionResponse = EndSessionResponse;
+
+EndSessionResponse.validateResponse = function (responseUrl, request, errors) {
+    var initLength = errors.length;
+    var query = responseUrl.searchParams;
+
+    // Validate that returned state matches the value from the request, for parity with
+    // AppAuth-iOS.
+    // See https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationService.m
+    // (search "OIDErrorCodeOAuthAuthorizationClientError").
+    var responseState = query.get(OidcConstants.QUERY_KEY_STATE);
+    if (request.state !== responseState) {
+        errors.push("State mismatch, expecting " + request.state + " but got " + responseState);
+    }
+
+    return errors.length === initLength;
+};

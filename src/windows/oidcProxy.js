@@ -137,7 +137,12 @@ module.exports = {
             Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, requestUrl, redirectUrl).done(function (result) {
                 if (result.responseStatus === Web.WebAuthenticationStatus.success) {
                     var responseUrl = new URL(result.responseData);
-                    success(new EndSessionResponse(responseUrl, request));
+                    var errors2 = [];
+                    if (EndSessionResponse.validateResponse(responseUrl, request, errors2)) {
+                        success(new EndSessionResponse(responseUrl, request));
+                    } else {
+                        fail(responseValidationErrorsResponse(errors2));
+                    }
                 } else {
                     fail(webAuthenticationBrokerErrorResponse(result));
                 }
