@@ -4,8 +4,8 @@ var isValidUrl = require("./isValidUrl").isValidUrl;
 
 function EndSessionRequest(reqParams) {
     this.configuration = reqParams.configuration;
-    this.idTokenHint = reqParams.idTokenHint;
-    this.postLogoutRedirectUrl = reqParams.postLogoutRedirectUrl;
+    this.idTokenHint = reqParams.idTokenHint === undefined ? null : reqParams.idTokenHint;
+    this.postLogoutRedirectUrl = reqParams.postLogoutRedirectUrl === undefined ? null : reqParams.postLogoutRedirectUrl;
     this.state = reqParams.state === null || reqParams.state === undefined ? CryptoUtils.createRandomId(32) : reqParams.state;
     this.additionalParameters = sanitizeAdditionalParams(reqParams.additionalParameters);
 }

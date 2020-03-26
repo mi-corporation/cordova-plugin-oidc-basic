@@ -4,10 +4,10 @@ var isValidUrl = require("./isValidUrl").isValidUrl;
 
 function AuthorizationRequest(reqParams) {
     this.configuration = reqParams.configuration;
-    this.responseType = reqParams.responseType;
-    this.clientId = reqParams.clientId;
-    this.scope = reqParams.scope;
-    this.redirectUrl = reqParams.redirectUrl;
+    this.responseType = reqParams.responseType === undefined ? null : reqParams.responseType;
+    this.clientId = reqParams.clientId === undefined ? null : reqParams.clientId;
+    this.scope = reqParams.scope === undefined ? null : reqParams.scope;
+    this.redirectUrl = reqParams.redirectUrl === undefined ? null : reqParams.redirectUrl;
     // If calling code passed in state, use it, otherwise generate random state.
     // This is needed to support the use case of calling code encoding current UI state or other info in the state
     // param. But it also means calling code has the responsibility for using the state param correctly. In particular,

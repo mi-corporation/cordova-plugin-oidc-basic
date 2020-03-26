@@ -89,7 +89,7 @@ module.exports = {
 
             var request = new AuthorizationRequest(reqParams);
             var requestUrl = new Windows.Foundation.Uri(request.buildRequestUrl());
-            var redirectUrl = request.redirectUrl !== null && request.redirectUrl !== undefined ? new Windows.Foundation.Uri(request.redirectUrl) : null;
+            var redirectUrl = request.redirectUrl === null ? null : new Windows.Foundation.Uri(request.redirectUrl);
             Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, requestUrl, redirectUrl).done(function (result) {
                 if (result.responseStatus === Web.WebAuthenticationStatus.success) {
                     // WebAuthenticationStatus.success only means we got a response from the auth provider.
@@ -133,7 +133,7 @@ module.exports = {
 
             var request = new EndSessionRequest(reqParams);
             var requestUrl = new Windows.Foundation.Uri(request.buildRequestUrl());
-            var redirectUrl = request.postLogoutRedirectUrl !== null && request.postLogoutRedirectUrl !== undefined ? new Windows.Foundation.Uri(request.postLogoutRedirectUrl) : null;
+            var redirectUrl = request.postLogoutRedirectUrl === null ? null : new Windows.Foundation.Uri(request.postLogoutRedirectUrl);
             Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, requestUrl, redirectUrl).done(function (result) {
                 if (result.responseStatus === Web.WebAuthenticationStatus.success) {
                     var responseUrl = new URL(result.responseData);
