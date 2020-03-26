@@ -37,6 +37,15 @@ function requestValidationErrorsResponse(errors) {
     };
 }
 
+function authorizationFlowAlreadyInProgressResponse() {
+    var message = "Cannot send this authorization request b/c another authorization flow is already in progress.";
+    return {
+        type: ErrorType.UNSENDABLE_REQUEST,
+        message: message,
+        details: message
+    };
+}
+
 function responseValidationErrorsResponse(errors) {
     var message = "Invalid response: " + errors.join(", ");
     return {
@@ -76,6 +85,19 @@ function unexpectedErrorResponse(e) {
     };
 }
 
+function unexpectedWebAuthBrokerRejectionResponse(e) {
+    return {
+        type: ErrorType.UNEXPECTED_ERROR,
+        message: typeof e.message === "string" ? e.message.trim("\n") : "",
+        details: [
+            e.toString().trim("\n"),
+            e.asyncOpSource && typeof e.asyncOpSource.stack === "string" ? e.asyncOpSource.stack.trim("\n") : ""
+        ].join("\n")
+    };
+}
+
+var authorizationFlowInProgress = false;
+
 module.exports = {
     presentAuthorizationRequest: function (success, fail, args) {
         try {
@@ -90,34 +112,51 @@ module.exports = {
             var request = new AuthorizationRequest(reqParams);
             var requestUrl = new Windows.Foundation.Uri(request.buildRequestUrl());
             var redirectUrl = request.redirectUrl === null ? null : new Windows.Foundation.Uri(request.redirectUrl);
+
+            if (authorizationFlowInProgress) {
+                fail(authorizationFlowAlreadyInProgressResponse());
+                return;
+            }
+
+            authorizationFlowInProgress = true;
+
             Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, requestUrl, redirectUrl).done(function (result) {
-                if (result.responseStatus === Web.WebAuthenticationStatus.success) {
-                    // WebAuthenticationStatus.success only means we got a response from the auth provider.
-                    // Still have to test if that was a success response or an error response.
-                    // result.responseData will be the full URL that the provider redirected back to, i.e.
-                    // our current application's callback uri plus the query string set by the provider.
-                    var responseUrl = new URL(result.responseData);
-                    if (AuthorizationErrorResponse.isErrorResponse(responseUrl)) {
-                        var authResp = new AuthorizationErrorResponse(responseUrl, request);
-                        fail({
-                            type: ErrorType.ERROR_RESPONSE,
-                            message: authResp.error,
-                            details: authResp.errorDescription,
-                            response: authResp
-                        });
-                    } else {
-                        var errors2 = [];
-                        if (AuthorizationSuccessResponse.validateResponse(responseUrl, request, errors2)) {
-                            success(new AuthorizationSuccessResponse(responseUrl, request));
+                authorizationFlowInProgress = false;
+                try {
+                    if (result.responseStatus === Web.WebAuthenticationStatus.success) {
+                        // WebAuthenticationStatus.success only means we got a response from the auth provider.
+                        // Still have to test if that was a success response or an error response.
+                        // result.responseData will be the full URL that the provider redirected back to, i.e.
+                        // our current application's callback uri plus the query string set by the provider.
+                        var responseUrl = new URL(result.responseData);
+                        if (AuthorizationErrorResponse.isErrorResponse(responseUrl)) {
+                            var authResp = new AuthorizationErrorResponse(responseUrl, request);
+                            fail({
+                                type: ErrorType.ERROR_RESPONSE,
+                                message: authResp.error,
+                                details: authResp.errorDescription,
+                                response: authResp
+                            });
                         } else {
-                            fail(responseValidationErrorsResponse(errors2));
+                            var errors2 = [];
+                            if (AuthorizationSuccessResponse.validateResponse(responseUrl, request, errors2)) {
+                                success(new AuthorizationSuccessResponse(responseUrl, request));
+                            } else {
+                                fail(responseValidationErrorsResponse(errors2));
+                            }
                         }
+                    } else {
+                        fail(webAuthenticationBrokerErrorResponse(result));
                     }
-                } else {
-                    fail(webAuthenticationBrokerErrorResponse(result));
+                } catch (e) {
+                    fail(unexpectedErrorResponse(e));
                 }
+            }, function (e) {
+                authorizationFlowInProgress = false;
+                fail(unexpectedWebAuthBrokerRejectionResponse(e));
             });
         } catch (e) {
+            authorizationFlowInProgress = false;
             fail(unexpectedErrorResponse(e));
         }
     },
@@ -134,20 +173,37 @@ module.exports = {
             var request = new EndSessionRequest(reqParams);
             var requestUrl = new Windows.Foundation.Uri(request.buildRequestUrl());
             var redirectUrl = request.postLogoutRedirectUrl === null ? null : new Windows.Foundation.Uri(request.postLogoutRedirectUrl);
+
+            if (authorizationFlowInProgress) {
+                fail(authorizationFlowAlreadyInProgressResponse());
+                return;
+            }
+
+            authorizationFlowInProgress = true;
+
             Web.WebAuthenticationBroker.authenticateAsync(Web.WebAuthenticationOptions.none, requestUrl, redirectUrl).done(function (result) {
-                if (result.responseStatus === Web.WebAuthenticationStatus.success) {
-                    var responseUrl = new URL(result.responseData);
-                    var errors2 = [];
-                    if (EndSessionResponse.validateResponse(responseUrl, request, errors2)) {
-                        success(new EndSessionResponse(responseUrl, request));
+                authorizationFlowInProgress = false;
+                try {
+                    if (result.responseStatus === Web.WebAuthenticationStatus.success) {
+                        var responseUrl = new URL(result.responseData);
+                        var errors2 = [];
+                        if (EndSessionResponse.validateResponse(responseUrl, request, errors2)) {
+                            success(new EndSessionResponse(responseUrl, request));
+                        } else {
+                            fail(responseValidationErrorsResponse(errors2));
+                        }
                     } else {
-                        fail(responseValidationErrorsResponse(errors2));
+                        fail(webAuthenticationBrokerErrorResponse(result));
                     }
-                } else {
-                    fail(webAuthenticationBrokerErrorResponse(result));
+                } catch (e) {
+                    fail(unexpectedErrorResponse(e));
                 }
+            }, function (e) {
+                authorizationFlowInProgress = false;
+                fail(unexpectedWebAuthBrokerRejectionResponse(e));
             });
         } catch (e) {
+            authorizationFlowInProgress = false;
             fail(unexpectedErrorResponse(e));
         }
     }
