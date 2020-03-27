@@ -57,7 +57,7 @@ module.exports = {
  * A successful authorization response.
  */
 function AuthorizationSuccessResponse(opts) {
-    this.request = opts.request ? new AuthorizationResponseRequest(opts.request) : null;
+    this.request = new AuthorizationResponseRequest(opts.request);
     this.authorizationCode = opts.authorizationCode;
     this.state = opts.state;
     this.accessToken = opts.accessToken;
@@ -90,7 +90,7 @@ function AuthorizationResponseRequest(opts) {
  * An error response from the authorization server as specified in https://tools.ietf.org/html/rfc6749#section-4.1.2.1.
  */
 function AuthorizationErrorResponse(opts) {
-    this.request = opts.request ? new AuthorizationResponseRequest(opts.request) : null;
+    this.request = new AuthorizationResponseRequest(opts.request);
     this.error = opts.error;
     this.errorDescription = opts.errorDescription;
     this.errorUrl = opts.errorUrl;
@@ -101,7 +101,7 @@ function AuthorizationErrorResponse(opts) {
  * A response to an end session request.
  */
 function EndSessionResponse(opts) {
-    this.request = opts.request ? new EndSessionResponseRequest(opts.request) : null;
+    this.request = new EndSessionResponseRequest(opts.request);
     this.state = opts.state;
     this.additionalParameters = opts.additionalParameters;
 }
@@ -112,8 +112,8 @@ function EndSessionResponse(opts) {
  * (e.g. state).
  */
 function EndSessionResponseRequest(opts) {
-    this.postLogoutRedirectUrl = opts.postLogoutRedirectUrl;
     this.idTokenHint = opts.idTokenHint;
+    this.postLogoutRedirectUrl = opts.postLogoutRedirectUrl;
     this.state = opts.state;
     this.additionalParameters = opts.additionalParameters;
 }
