@@ -4,7 +4,7 @@ interface CordovaPluginOIDCBasic {
      * Present the end user with an authorization request. This is the main entrypoint to any
      * OpenID Connect/OAuth 2.0 flow.
      */
-    presenAuthorizationRequest(req: OIDCBasicAuthorizationRequestOptions, successCb?: (resp: OIDCBasicAuthorizationSuccessResponse) => void, errorCb?: (err: OIDCBasicError) => void): void;
+    presentAuthorizationRequest(req: OIDCBasicAuthorizationRequestOptions, successCb?: (resp: OIDCBasicAuthorizationSuccessResponse) => void, errorCb?: (err: OIDCBasicError) => void): void;
     /**
      * Present the end user with an end session request.
      */
