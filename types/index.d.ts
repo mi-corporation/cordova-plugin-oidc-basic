@@ -265,10 +265,10 @@ interface OIDCBasicAuthorizationErrorResponse {
      */
     errorUrl: string | null;
     /**
-     * The returned state value. Unlike for success response's, cordova-plugin-oidc-basic
-     * does not validate that the returned state matches the requests's state value (because
-     * that seems like a bad reason to obscure the original error message from the
-     * authorization server).
+     * The state value echoed back by the authorization server. cordova-plugin-oidc-basic
+     * ensures that this matches the request's state value exactly, otherwise it calls the
+     * provided error callback with an error of type
+     * `cordova.plugins.oidc.basic.ErrorType.INVALID_RESPONSE`.
      */
     state: string | null;
 }

@@ -44,12 +44,17 @@ AuthorizationSuccessResponse.validateResponse = function (responseUrl, request, 
     return errors.length === initLength;
 };
 
-function computeExpirationDate(expiresIn) {
-    if (typeof expiresIn === 'number') {
-        // expiresIn measures expiration from now in seconds. We send Dates to JS as milliseconds
-        // since 1970, since that is what the Javascript Date constructor expects.
-        return new Date(Date.now() + expiresIn * 1000).getTime();
+function computeExpirationDate(expiresInStr) {
+    if (expiresInStr) {
+        const expiresIn = +expiresInStr;
+        if (isNaN(expiresIn)) {
+            return null;
+        } else {
+            // expiresIn measures expiration from now in seconds. We send Dates to JS as milliseconds
+            // since 1970, since that is what the Javascript Date constructor expects.
+            return new Date(Date.now() + expiresIn * 1000).getTime();
+        }
     } else {
-        return expiresIn;
+        return null;
     }
 }

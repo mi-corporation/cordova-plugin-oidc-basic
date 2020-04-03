@@ -38,7 +38,7 @@ function requestValidationErrorsResponse(errors) {
 }
 
 function authorizationFlowAlreadyInProgressResponse() {
-    var message = "Cannot send this authorization request b/c another authorization flow is already in progress.";
+    var message = "Cannot send this request b/c another authorization flow is already in progress.";
     return {
         type: ErrorType.UNSENDABLE_REQUEST,
         message: message,
@@ -65,8 +65,8 @@ function webAuthenticationBrokerErrorResponse(result) {
     } else if (result.responseStatus === Web.WebAuthenticationStatus.userCancel) {
         return {
             type: ErrorType.USER_CANCELLED,
-            message: "User cancelled the authorization request.",
-            details: "User cancelled the authorization request."
+            message: "User cancelled the request.",
+            details: "User cancelled the request."
         };
     } else {
         return {
@@ -130,19 +130,24 @@ module.exports = {
                         // our current application's callback uri plus the query string set by the provider.
                         var responseUrl = new URL(result.responseData);
                         if (AuthorizationErrorResponse.isErrorResponse(responseUrl)) {
-                            var authResp = new AuthorizationErrorResponse(responseUrl, request);
-                            fail({
-                                type: ErrorType.ERROR_RESPONSE,
-                                message: authResp.error,
-                                details: authResp.errorDescription,
-                                response: authResp
-                            });
+                            errors = [];
+                            if (AuthorizationErrorResponse.validateResponse(responseUrl, request, errors)) {
+                                var authResp = new AuthorizationErrorResponse(responseUrl, request);
+                                fail({
+                                    type: ErrorType.ERROR_RESPONSE,
+                                    message: authResp.error,
+                                    details: authResp.errorDescription,
+                                    response: authResp
+                                });
+                            } else {
+                                fail(responseValidationErrorsResponse(errors));
+                            }
                         } else {
-                            var errors2 = [];
-                            if (AuthorizationSuccessResponse.validateResponse(responseUrl, request, errors2)) {
+                            errors = [];
+                            if (AuthorizationSuccessResponse.validateResponse(responseUrl, request, errors)) {
                                 success(new AuthorizationSuccessResponse(responseUrl, request));
                             } else {
-                                fail(responseValidationErrorsResponse(errors2));
+                                fail(responseValidationErrorsResponse(errors));
                             }
                         }
                     } else {

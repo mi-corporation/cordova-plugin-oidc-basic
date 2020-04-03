@@ -97,6 +97,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                     NSDictionary *json = [self jsonForSuccessfulAuthorizationResponse:response];
                     result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
                 } else {
+                    // TODO: Validate state even for error responses
                     NSDictionary *json = [self jsonForAuthorizationError:error request:request];
                     result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
                 }
@@ -553,8 +554,8 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 -(NSDictionary *)jsonForAuthorizationFlowAlreadyInProgress {
     return @{
         @"type":         UNSENDABLE_REQUEST,
-        @"message":      @"Cannot send this authorization request b/c another authorization flow is already in progress.",
-        @"details":      @"Cannot send this authorization request b/c another authorization flow is already in progress."
+        @"message":      @"Cannot send this request b/c another authorization flow is already in progress.",
+        @"details":      @"Cannot send this request b/c another authorization flow is already in progress."
     };
 }
 
