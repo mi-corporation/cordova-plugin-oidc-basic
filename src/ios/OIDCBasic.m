@@ -26,6 +26,8 @@ static NSString * HTTP_ERROR = @"OIDC_HTTP_ERROR";
 static NSString * USER_CANCELLED = @"OIDC_USER_CANCELLED";
 static NSString * UNEXPECTED_ERROR = @"OIDC_UNEXPECTED_ERROR";
 
+static NSString * QUERY_KEY_STATE = @"state";
+
 static id<OIDExternalUserAgentSession> currentAuthorizationFlow = nil;
 
 // Have to register to handle redirections. See https://github.com/openid/AppAuth-iOS#authorizing-ios
@@ -97,8 +99,18 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                     NSDictionary *json = [self jsonForSuccessfulAuthorizationResponse:response];
                     result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:json];
                 } else {
-                    // TODO: Validate state even for error responses
-                    NSDictionary *json = [self jsonForAuthorizationError:error request:request];
+                    NSDictionary *json;
+                    NSDictionary *errResp = [self authorizationErrorResponseFromError:error];
+                    if (errResp) {
+                        NSMutableArray<NSString *> *errRespValidationErrors;
+                        if ([self validateAuthorizationErrorResponse:errResp request:request errors:&errRespValidationErrors]) {
+                            json = [self jsonForAuthorizationErrorResponse:errResp request:request];
+                        } else {
+                            json = [self jsonForInvalidAuthorizationErrorResponse:errRespValidationErrors];
+                        }
+                    } else {
+                        json = [self jsonForNonErrorResponseAuthorizationError:error];
+                    }
                     result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:json];
                 }
                 [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
@@ -278,18 +290,88 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     };
 }
 
--(NSDictionary *)jsonForAuthorizationError:(NSError *)error
-                                   request:(OIDAuthorizationRequest *)request {
+-(NSDictionary *)authorizationErrorResponseFromError:(NSError *)error {
+    return [error.domain isEqualToString:OIDOAuthAuthorizationErrorDomain] ? error.userInfo[OIDOAuthErrorResponseErrorKey] : nil;
+}
+
+-(BOOL)validateAuthorizationErrorResponse:(NSDictionary *)response
+                                  request:(OIDAuthorizationRequest *)request
+                                   errors:(NSMutableArray<NSString *> **)errors {
+    NSMutableArray<NSString *> *validationErrors = [[NSMutableArray alloc] init];
+
+    // Validate that the response state matches the request state, even for error responses.
+    // AppAuth-iOS doesn't do this itself: See
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationService.m (search
+    // "RFC6749 Section 4.1.2.1") and
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDErrorUtilities.m (search
+    // "OAuthResponse:"). This appears to be a behavior difference btwn AppAuth-iOS, which
+    // proceeds down its code path for error responses BEFORE validating the returned state, vs
+    // AppAuth-JS, which validates the returned state BEFORE detecting error responses. See
+    // https://github.com/openid/AppAuth-JS/blob/master/src/redirect_based_handler.ts (search
+    // "let shouldNotify").
+    // We'll converge on the AppAuth-JS behavior b/c it seems more consistent w/ the spec
+    // (https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
+    //
+    //   state
+    //         REQUIRED if a "state" parameter was present in the client
+    //         authorization request.  The exact value received from the
+    //         client.
+    //
+    // I.e. any compliant server must return the exact state value provided. Validating state also
+    // helps defend against the possibility (perhaps remote) that malicious code might try to fool us
+    // by injecting a forged error response.
+    if (request.state) {
+        // Request has non-nil state. Response state should be a string that matches exactly
+        if (!response[QUERY_KEY_STATE]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"Missing query key '%@'", QUERY_KEY_STATE]];
+        } else if (![response[QUERY_KEY_STATE] isKindOfClass:[NSString class]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"Unexpected value type %@ for query key '%@'. Expected NSString.", [response[QUERY_KEY_STATE] class], QUERY_KEY_STATE]];
+        } else if (![request.state isEqualToString:response[QUERY_KEY_STATE]]) {
+            [validationErrors addObject:[NSString stringWithFormat:@"State mismatch: Expected '%@' but found '%@'", request.state, response[QUERY_KEY_STATE]]];
+        }
+    } else if (response[QUERY_KEY_STATE]) {
+        // Response unexpectedly has state even though request didnt.
+        [validationErrors addObject:[NSString stringWithFormat:@"State mismatch: Expected %@ but found %@", request.state, response[QUERY_KEY_STATE]]];
+    }
+
+    *errors = validationErrors;
+    return validationErrors.count == 0;
+}
+
+-(NSDictionary *)jsonForAuthorizationErrorResponse:(NSDictionary *)response
+                                           request:(OIDAuthorizationRequest *)request {
+    NSDictionary *respJson = [self responseJsonForAuthorizationErrorResponse:response request:request];
+    return @{
+        @"type":         ERROR_RESPONSE,
+        @"message":      respJson[@"error"],
+        @"details":      respJson[@"errorDescription"],
+        @"response":     respJson
+    };
+}
+
+-(NSDictionary *)responseJsonForAuthorizationErrorResponse:(NSDictionary *)response
+                                                   request:(OIDAuthorizationRequest *)request {
+    return @{
+        @"request":               [self jsonForNilable:[self jsonForReturnedAuthorizationRequest:request]],
+        @"error":                 [self maybeString:response[OIDOAuthErrorFieldError]],
+        @"errorDescription":      [self maybeString:response[OIDOAuthErrorFieldErrorDescription]],
+        @"errorUrl":              [self maybeString:response[OIDOAuthErrorFieldErrorURI]],
+        @"state":                 [self maybeString:response[QUERY_KEY_STATE]]
+    };
+}
+
+-(NSDictionary *)jsonForInvalidAuthorizationErrorResponse:(NSArray<NSString *> *)validationErrors {
+    NSString *message = [@"Invalid response: " stringByAppendingString:[validationErrors componentsJoinedByString:@", "]];
+    return @{
+        @"type":         INVALID_RESPONSE,
+        @"message":      message,
+        @"details":      message
+    };
+}
+
+-(NSDictionary *)jsonForNonErrorResponseAuthorizationError:(NSError *)error {
     if ([error.domain isEqualToString:OIDOAuthAuthorizationErrorDomain]) {
-        if (error.userInfo[OIDOAuthErrorResponseErrorKey]) {
-            NSDictionary *respJson = [self jsonForFailedAuthorizationResponse:error.userInfo[OIDOAuthErrorResponseErrorKey] request:request];
-            return @{
-                @"type":         ERROR_RESPONSE,
-                @"message":      respJson[@"error"],
-                @"details":      respJson[@"errorDescription"],
-                @"response":     respJson
-            };
-        } else if (error.code == OIDErrorCodeOAuthAuthorizationClientError) {
+        if (error.code == OIDErrorCodeOAuthAuthorizationClientError) {
             // The OIDErrorCodeOAuthAuthorizationClientError constant seems misleading to me.
             // AppAuth returns this error when the response doesn't meet our expectations, meaning
             // the PROVIDER did something not in keeping w/ our understanding of OIDC (or that
@@ -307,19 +389,6 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
     return [self standardJSONForError:error type:UNEXPECTED_ERROR];
 }
-
--(NSDictionary *)jsonForFailedAuthorizationResponse:(NSDictionary *)response
-                                            request:(OIDAuthorizationRequest *)request {
-    if (!response) return nil;
-    return @{
-        @"request":               [self jsonForNilable:[self jsonForReturnedAuthorizationRequest:request]],
-        @"error":                 [self maybeString:response[OIDOAuthErrorFieldError]],
-        @"errorDescription":      [self maybeString:response[OIDOAuthErrorFieldErrorDescription]],
-        @"errorUrl":              [self maybeString:response[OIDOAuthErrorFieldErrorURI]],
-        @"state":                 [self maybeString:response[@"state"]]
-    };
-}
-
 
 // presentEndSessionRequest
 
@@ -481,7 +550,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 // data that we generate on the native side for end session requests is the state param. But that's
 // already included as a response field, and AppAuth already validates that the request and response
 // state fields match before passing us the response. So there's nothing interesting calling code
-// could do w/ this request. 
+// could do w/ this request.
 -(NSDictionary *)jsonForReturnedEndSessionRequest:(OIDEndSessionRequest *)request {
     if (!request) return nil;
     return @{
@@ -496,7 +565,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 -(NSDictionary *)jsonForEndSessionError:(NSError *)error {
     if ([error.domain isEqualToString:OIDOAuthAuthorizationErrorDomain]) {
         if (error.code == OIDErrorCodeOAuthAuthorizationClientError) {
-            // Ditto -jsonForAuthorizationError:request: on OIDErrorCodeOAuthAuthorizationClientError
+            // Ditto -jsonForNonErrorResponseAuthorizationError: on OIDErrorCodeOAuthAuthorizationClientError
             // really meaning INVALID_RESPONSE.
             return [self standardJSONForError:error type:INVALID_RESPONSE];
         }
@@ -542,7 +611,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     });
 }
 
--(NSDictionary *)jsonForRequestValidationErrors:(NSMutableArray<NSString *> *)validationErrors {
+-(NSDictionary *)jsonForRequestValidationErrors:(NSArray<NSString *> *)validationErrors {
     NSString *message = [@"Request contained the following validation errors: " stringByAppendingString:[validationErrors componentsJoinedByString:@", "]];
     return @{
         @"type":         UNSENDABLE_REQUEST,
