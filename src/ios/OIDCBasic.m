@@ -136,14 +136,14 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     if (!reqParams) {
         [validationErrors addObject:@"request params object is required"];
     } else {
-        if (!reqParams[CONFIGURATION_PARAM]) {
+        if (![self isValuePresent:reqParams[CONFIGURATION_PARAM]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param is required", CONFIGURATION_PARAM]];
         } else {
             if (![reqParams[CONFIGURATION_PARAM] isKindOfClass:[NSDictionary class]]) {
                 [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a JS object", CONFIGURATION_PARAM]];
             } else {
                 NSDictionary *configParams = reqParams[CONFIGURATION_PARAM];
-                if (!configParams[CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]) {
+                if (![self isValuePresent:configParams[CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]]) {
                     [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param is required", CONFIGURATION_PARAM, CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]];
                 } else if (![configParams[CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM] isKindOfClass:[NSString class]]) {
                     [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param must be a string", CONFIGURATION_PARAM, CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM]];
@@ -152,30 +152,30 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                 }
             }
         }
-        if (!reqParams[RESPONSE_TYPE_PARAM]) {
+        if (![self isValuePresent:reqParams[RESPONSE_TYPE_PARAM]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param is required", RESPONSE_TYPE_PARAM]];
         } else if (![reqParams[RESPONSE_TYPE_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", RESPONSE_TYPE_PARAM]];
         }
-        if (!reqParams[CLIENT_ID_PARAM]) {
+        if (![self isValuePresent:reqParams[CLIENT_ID_PARAM]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param is required", CLIENT_ID_PARAM]];
         } else if (![reqParams[CLIENT_ID_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", CLIENT_ID_PARAM]];
         }
-        if (reqParams[SCOPE_PARAM] && ![reqParams[SCOPE_PARAM] isKindOfClass:[NSString class]]) {
+        if ([self isValuePresent:reqParams[SCOPE_PARAM]] && ![reqParams[SCOPE_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", SCOPE_PARAM]];
         }
-        if (reqParams[REDIRECT_URL_PARAM]) {
+        if ([self isValuePresent:reqParams[REDIRECT_URL_PARAM]]) {
             if (![reqParams[REDIRECT_URL_PARAM] isKindOfClass:[NSString class]]) {
                 [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", REDIRECT_URL_PARAM]];
             } else if (![NSURL URLWithString:reqParams[REDIRECT_URL_PARAM]]) {
                 [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a valid URL", REDIRECT_URL_PARAM]];
             }
         }
-        if (reqParams[STATE_PARAM] && ![reqParams[STATE_PARAM] isKindOfClass:[NSString class]]) {
+        if ([self isValuePresent:reqParams[STATE_PARAM]] && ![reqParams[STATE_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", STATE_PARAM]];
         }
-        if (reqParams[ADDITIONAL_PARAMETERS_PARAM] && ![reqParams[ADDITIONAL_PARAMETERS_PARAM] isKindOfClass:[NSDictionary class]]) {
+        if ([self isValuePresent:reqParams[ADDITIONAL_PARAMETERS_PARAM]] && ![reqParams[ADDITIONAL_PARAMETERS_PARAM] isKindOfClass:[NSDictionary class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a JS object", ADDITIONAL_PARAMETERS_PARAM]];
         }
     }
@@ -213,12 +213,12 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     // (For what it's worth, I think that section applies more closely to web apps and that for native
     // apps PKCE defends against the same attacks in a more robust way. But I'd still recommend
     // calling code make their state opaque and non-guessable as an extra security measure.)
-    NSString *state = reqParams[STATE_PARAM] ?: [OIDAuthorizationRequest generateState];
+    NSString *state = [self coerceNSNullToNil:reqParams[STATE_PARAM]] ?: [OIDAuthorizationRequest generateState];
     return [[OIDAuthorizationRequest alloc] initWithConfiguration:config
                                                          clientId:reqParams[CLIENT_ID_PARAM]
                                                      clientSecret:nil
-                                                            scope:reqParams[SCOPE_PARAM]
-                                                      redirectURL:[NSURL URLWithString:reqParams[REDIRECT_URL_PARAM]]
+                                                            scope:[self coerceNSNullToNil:reqParams[SCOPE_PARAM]]
+                                                      redirectURL:[NSURL URLWithString:[self coerceNSNullToNil:reqParams[REDIRECT_URL_PARAM]]]
                                                      responseType:reqParams[RESPONSE_TYPE_PARAM]
                                                             state:state
                                                             nonce:nonce
@@ -245,7 +245,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
     static int BLACKLISTED_LENGTH = sizeof(BLACKLISTED) / sizeof(BLACKLISTED[0]);
 
-    if (params) {
+    if ([self isValuePresent:params]) {
         NSMutableDictionary *processed = [[NSMutableDictionary alloc] initWithDictionary:params];
         for (int i = 0; i < BLACKLISTED_LENGTH; i++) {
             [processed removeObjectForKey:BLACKLISTED[i]];
@@ -291,7 +291,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 }
 
 -(NSDictionary *)authorizationErrorResponseFromError:(NSError *)error {
-    return [error.domain isEqualToString:OIDOAuthAuthorizationErrorDomain] ? error.userInfo[OIDOAuthErrorResponseErrorKey] : nil;
+    return [error.domain isEqualToString:OIDOAuthAuthorizationErrorDomain] ? [self coerceNSNullToNil:error.userInfo[OIDOAuthErrorResponseErrorKey]] : nil;
 }
 
 -(BOOL)validateAuthorizationErrorResponse:(NSDictionary *)response
@@ -322,14 +322,14 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     // by injecting a forged error response.
     if (request.state) {
         // Request has non-nil state. Response state should be a string that matches exactly
-        if (!response[QUERY_KEY_STATE]) {
+        if (![self isValuePresent:response[QUERY_KEY_STATE]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"Missing query key '%@'", QUERY_KEY_STATE]];
         } else if (![response[QUERY_KEY_STATE] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"Unexpected value type %@ for query key '%@'. Expected NSString.", [response[QUERY_KEY_STATE] class], QUERY_KEY_STATE]];
         } else if (![request.state isEqualToString:response[QUERY_KEY_STATE]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"State mismatch: Expected '%@' but found '%@'", request.state, response[QUERY_KEY_STATE]]];
         }
-    } else if (response[QUERY_KEY_STATE]) {
+    } else if ([self isValuePresent:response[QUERY_KEY_STATE]]) {
         // Response unexpectedly has state even though request didnt.
         [validationErrors addObject:[NSString stringWithFormat:@"State mismatch: Expected %@ but found %@", request.state, response[QUERY_KEY_STATE]]];
     }
@@ -449,14 +449,14 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     if (!reqParams) {
         [validationErrors addObject:@"request params object is required"];
     } else {
-        if (!reqParams[CONFIGURATION_PARAM]) {
+        if (![self isValuePresent:reqParams[CONFIGURATION_PARAM]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param is required", CONFIGURATION_PARAM]];
         } else {
             if (![reqParams[CONFIGURATION_PARAM] isKindOfClass:[NSDictionary class]]) {
                 [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a JS object", CONFIGURATION_PARAM]];
             } else {
                 NSDictionary *configParams = reqParams[CONFIGURATION_PARAM];
-                if (!configParams[CONFIGURATION_END_SESSION_ENDPOINT_PARAM]) {
+                if (![self isValuePresent:configParams[CONFIGURATION_END_SESSION_ENDPOINT_PARAM]]) {
                     [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param is required", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM]];
                 } else if (![configParams[CONFIGURATION_END_SESSION_ENDPOINT_PARAM] isKindOfClass:[NSString class]]) {
                     [validationErrors addObject:[NSString stringWithFormat:@"%@.%@ param must be a string", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM]];
@@ -465,20 +465,20 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
                 }
             }
         }
-        if (reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]) {
+        if ([self isValuePresent:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]) {
             if (![reqParams[POST_LOGOUT_REDIRECT_URL_PARAM] isKindOfClass:[NSString class]]) {
                 [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", POST_LOGOUT_REDIRECT_URL_PARAM]];
             } else if (![NSURL URLWithString:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]) {
                 [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a valid URL", POST_LOGOUT_REDIRECT_URL_PARAM]];
             }
         }
-        if (reqParams[ID_TOKEN_HINT_PARAM] && ![reqParams[ID_TOKEN_HINT_PARAM] isKindOfClass:[NSString class]]) {
+        if ([self isValuePresent:reqParams[ID_TOKEN_HINT_PARAM]] && ![reqParams[ID_TOKEN_HINT_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", ID_TOKEN_HINT_PARAM]];
         }
-        if (reqParams[STATE_PARAM] && ![reqParams[STATE_PARAM] isKindOfClass:[NSString class]]) {
+        if ([self isValuePresent:reqParams[STATE_PARAM]] && ![reqParams[STATE_PARAM] isKindOfClass:[NSString class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a string", STATE_PARAM]];
         }
-        if (reqParams[ADDITIONAL_PARAMETERS_PARAM] && ![reqParams[ADDITIONAL_PARAMETERS_PARAM] isKindOfClass:[NSDictionary class]]) {
+        if ([self isValuePresent:reqParams[ADDITIONAL_PARAMETERS_PARAM]] && ![reqParams[ADDITIONAL_PARAMETERS_PARAM] isKindOfClass:[NSDictionary class]]) {
             [validationErrors addObject:[NSString stringWithFormat:@"%@ param must be a JS object", ADDITIONAL_PARAMETERS_PARAM]];
         }
     }
@@ -505,10 +505,10 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     // So we use OIDAuthorizationRequest's implementation, which is identical. See
     // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m vs
     // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDEndSessionRequest.m
-    NSString *state = reqParams[STATE_PARAM] ?: [OIDAuthorizationRequest generateState];
+    NSString *state = [self coerceNSNullToNil:reqParams[STATE_PARAM]] ?: [OIDAuthorizationRequest generateState];
     return [[OIDEndSessionRequest alloc] initWithConfiguration:config
-                                                   idTokenHint:reqParams[ID_TOKEN_HINT_PARAM]
-                                         postLogoutRedirectURL:[NSURL URLWithString:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]
+                                                   idTokenHint:[self coerceNSNullToNil:reqParams[ID_TOKEN_HINT_PARAM]]
+                                         postLogoutRedirectURL:[NSURL URLWithString:[self coerceNSNullToNil:reqParams[POST_LOGOUT_REDIRECT_URL_PARAM]]]
                                                          state:state
                                           additionalParameters:[self preprocessEndSessionRequestAdditionalParams:reqParams[ADDITIONAL_PARAMETERS_PARAM]]];
 }
@@ -525,7 +525,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
     static int BLACKLISTED_LENGTH = sizeof(BLACKLISTED) / sizeof(BLACKLISTED[0]);
 
-    if (params) {
+    if ([self isValuePresent:params]) {
         NSMutableDictionary *processed = [[NSMutableDictionary alloc] initWithDictionary:params];
         for (int i = 0; i < BLACKLISTED_LENGTH; i++) {
             [processed removeObjectForKey:BLACKLISTED[i]];
@@ -582,6 +582,14 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
 
 // Utilities common to all request types
+
+-(BOOL)isValuePresent:(id)param {
+    return param ? param != [NSNull null] : NO;
+}
+
+-(id)coerceNSNullToNil:(id)val {
+    return val == [NSNull null] ? nil : val;
+}
 
 -(void)launchAuthorizationFlowForCommand:(CDVInvokedUrlCommand *)command
                                     flow:(id<OIDExternalUserAgentSession> (^)()) flow {
@@ -650,7 +658,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 }
 
 -(id)maybeString:(NSObject *)obj {
-    return obj ? [obj isKindOfClass:[NSString class]] ? (NSString *)obj : obj.description : [NSNull null];
+    return [self isValuePresent:obj] ? [obj isKindOfClass:[NSString class]] ? (NSString *)obj : obj.description : [NSNull null];
 }
 
 @end
