@@ -3,8 +3,8 @@
 ## Dependencies
 This plugin aims to be a thin wrapper around the following libraries/APIs:
 - iOS -- [AppAuth-iOS](https://github.com/openid/AppAuth-iOS)
+- Android -- [AppAuth-Android](https://github.com/openid/AppAuth-Android)
 - Windows -- The [Web Authentication Broker](https://docs.microsoft.com/en-us/uwp/api/Windows.Security.Authentication.Web.WebAuthenticationBroker) API
-- Android -- Android support is pending, but planning to use [AppAuth-Android](https://github.com/openid/AppAuth-Android).
 
 ## Usage
 ```js
@@ -41,12 +41,32 @@ cordova.plugins.oidc.basic.presentAuthorizationRequest(req,
 ## Setup
 ### Configuring the `redirectUrl`
 To successfully receive redirects on all platforms, your `redirectUrl` must adhere to the following conventions:
-- For iOS 11+, the `redirectUrl` can be any URL as long as it uses a custom scheme (not http or https). No
-preregistration of your `redirectUrl` is required.
-- For iOS 10 and below, the `redirectUrl` can be any URL as long as it uses a custom scheme (not http or
-https), but you need to declare the scheme in your `*-Info.plist` file. You can use the [Custom-URL-scheme
-plugin](https://github.com/EddyVerbruggen/Custom-URL-scheme) to do this. See https://github.com/EddyVerbruggen/Custom-URL-scheme#2-installation.
-- For Windows, the `redirectUrl` can be any URL (or so it seems). No preregistration of your `redirectUrl`
+- For iOS, use a custom URL scheme. No pre-registration of your custom scheme is needed provided you're targeting
+    iOS 11+. For iOS 10 and below, you need to declare your custom scheme in your `*-Info.plist` file. You can use
+    the [Custom-URL-scheme plugin](https://github.com/EddyVerbruggen/Custom-URL-scheme) to do this. See
+    https://github.com/EddyVerbruggen/Custom-URL-scheme#2-installation.
+
+- For Android, you can use a custom URL scheme or an [app link](https://developer.android.com/training/app-links).
+    Either way, the redirect url must be configured at plugin add time via one of the variables
+    `ANDROID_REDIRECT_SCHEME` or `ANDROID_REDIRECT_DATA_ELEMENT` (either one is sufficient).
+
+    To use a custom URL scheme, e.g. `com.example.myapp`, use the `ANDROID_REDIRECT_SCHEME` variable, e.g.
+    ```
+    cordova plugin add https://github.com/mi-corporation/cordova-plugin-oidc-basic.git --variable ANDROID_REDIRECT_SCHEME=com.example.myapp
+    ```
+    To use an [app link](https://developer.android.com/training/app-links) for
+    Android M and above, set the `ANDROID_REDIRECT_DATA_ELEMENT` variable to the matching XML `<data>`
+    element. Make sure to escape this XML appropriately for whatever command shell you're using. E.g.
+    if your app link is `https://myapp.example.com/oidc_redirect` and you're using zsh/bash/etc, do
+    ```
+    cordova plugin add https://github.com/mi-corporation/cordova-plugin-oidc-basic.git --variable ANDROID_REDIRECT_DATA_ELEMENT="<data android:scheme=\"https\" android:host=\"myapp.example.com\" android:path=\"/oidc_redirect\" />"
+    ```
+    Or on a Windows command prompt, do
+    ```
+    cordova plugin add https://github.com/mi-corporation/cordova-plugin-oidc-basic.git --variable ANDROID_REDIRECT_DATA_ELEMENT="<data android:scheme=""https"" android:host=""myapp.example.com"" android:path=""/oidc_redirect"" />"
+    ```
+    All `<data>` element attributes are supported. See https://developer.android.com/guide/topics/manifest/data-element
+- For Windows, the `redirectUrl` can be any URL. No preregistration of your `redirectUrl`
 is required.
 
 ### Tips on CocoaPods Setup on iOS
@@ -64,12 +84,20 @@ include AppAuth-iOS when you try to build.
 ## Supported Features
 - OpenID Connect authentication requests and OAuth 2.0 authorization requests.
 Use `presentAuthorizationRequest`.
-Authorization code flow, implicit flow, and OpenID Connect hybrid flow are all supported.
-See https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-and https://tools.ietf.org/html/rfc6749#section-4.
+
+    Authorization code flow, implicit flow, and OpenID Connect hybrid flow are all supported.
+    See https://openid.net/specs/openid-connect-core-1_0.html#Authentication
+    and https://tools.ietf.org/html/rfc6749#section-4.
+
+    Supported on all platforms.
+
 - OpenID Connect RP-initiated logout.
 Use `presentEndSessionRequest`.
-See https://openid.net/specs/openid-connect-session-1_0.html#RPLogout.
+
+    See https://openid.net/specs/openid-connect-session-1_0.html#RPLogout.
+
+    Supported on iOS and Windows. *Not supported on Android* (due to missing AppAuth-Android support,
+    see https://github.com/openid/AppAuth-Android/issues/374).
 
 This plugin does not (and likely will not) provide APIs to perform a token request as part of the
 authorization code or hybrid flows or validate the OpenID Connect ID token returned from a token request or
