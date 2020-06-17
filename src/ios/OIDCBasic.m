@@ -33,7 +33,7 @@ static id<OIDExternalUserAgentSession> currentAuthorizationFlow = nil;
 // Have to register to handle redirections. See https://github.com/openid/AppAuth-iOS#authorizing-ios
 // Use method swizzling to respect any existing application:openURL:options: implementation.
 // NOTE: This registration code is only needed to support iOS 10 and below. Check
-// https://github.com/openid/AppAuth-iOS/blob/master/Source/iOS/OIDExternalUserAgentIOS.m and
+// https://github.com/openid/AppAuth-iOS/blob/master/Source/AppAuth/iOS/OIDExternalUserAgentIOS.m and
 // note the handling for different iOS versions in -presentExternalUserAgentRequest:session:.
 // For iOS 11+, that method calls -resumeExternalUserAgentFlowWithURL: itself.
 @implementation AppDelegate (OIDCBasicAppDelegate)
@@ -201,7 +201,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     // params needed for PKCE (codeVerifier, codeChallenge, and codeChallengeMethod), b/c we want to
     // let JS pass state, and OIDAuthorizationRequest.state is readonly, so we can't modify it post
     // initialization. So generate nonce, codeVerifier, codeChallenge, exactly as the opinionated
-    // initalizer does. See https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m
+    // initalizer does. See https://github.com/openid/AppAuth-iOS/blob/master/Source/AppAuthCore/OIDAuthorizationRequest.m
     NSString *nonce = [OIDAuthorizationRequest generateState];
     NSString *codeVerifier = [OIDAuthorizationRequest generateCodeVerifier];
     NSString *codeChallenge = [OIDAuthorizationRequest codeChallengeS256ForVerifier:codeVerifier];
@@ -301,9 +301,9 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 
     // Validate that the response state matches the request state, even for error responses.
     // AppAuth-iOS doesn't do this itself: See
-    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationService.m (search
-    // "RFC6749 Section 4.1.2.1") and
-    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDErrorUtilities.m (search
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/AppAuthCore/OIDAuthorizationService.m
+    // (search "RFC6749 Section 4.1.2.1") and
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/AppAuthCore/OIDErrorUtilities.m (search
     // "OAuthResponse:"). This appears to be a behavior difference btwn AppAuth-iOS, which
     // proceeds down its code path for error responses BEFORE validating the returned state, vs
     // AppAuth-JS, which validates the returned state BEFORE detecting error responses. See
@@ -432,7 +432,7 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     // Unlike for authorizationRequests, AppAuth doesn't expose a nice
     // -presentEndSessionRequest:presentingViewController:callback: method for iOS. So we're inlining
     // the equivalent logic here.
-    // See https://github.com/openid/AppAuth-iOS/blob/master/Source/iOS/OIDAuthorizationService%2BIOS.m
+    // See https://github.com/openid/AppAuth-iOS/blob/master/Source/AppAuth/iOS/OIDAuthorizationService%2BIOS.m
     id<OIDExternalUserAgent> externalUserAgent;
 #if TARGET_OS_MACCATALYST
   externalUserAgent = [[OIDExternalUserAgentCatalyst alloc] initWithPresentingViewController:self.viewController];
@@ -503,8 +503,8 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
     // falling back to randomly-generated state. An extra wrinkle is that OIDEndSessionRequest
     // doesn't expose its +generateState method in its header like OIDAuthorizationRequest does.
     // So we use OIDAuthorizationRequest's implementation, which is identical. See
-    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDAuthorizationRequest.m vs
-    // https://github.com/openid/AppAuth-iOS/blob/master/Source/OIDEndSessionRequest.m
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/AppAuthCore/OIDAuthorizationRequest.m vs
+    // https://github.com/openid/AppAuth-iOS/blob/master/Source/AppAuthCore/OIDEndSessionRequest.m
     NSString *state = [self coerceNSNullToNil:reqParams[STATE_PARAM]] ?: [OIDAuthorizationRequest generateState];
     return [[OIDEndSessionRequest alloc] initWithConfiguration:config
                                                    idTokenHint:[self coerceNSNullToNil:reqParams[ID_TOKEN_HINT_PARAM]]
