@@ -206,7 +206,7 @@ public class OIDCBasic extends CordovaPlugin {
             .setLoginHint(rawAdditionalParams == null ? null : readNullableString(rawAdditionalParams, ADDITIONAL_PARAMETERS_LOGIN_HINT_PARAM))
             .setPrompt(rawAdditionalParams == null ? null : readNullableString(rawAdditionalParams, ADDITIONAL_PARAMETERS_PROMPT_PARAM))
             .setResponseMode(rawAdditionalParams == null ? null : readNullableString(rawAdditionalParams, ADDITIONAL_PARAMETERS_RESPONSE_MODE_PARAM))
-            .setAdditionalParameters(toAppAuthAdditionalAuthReqParams(rawAdditionalParams))
+            .setAdditionalParameters(toAppAuthAdditionalParams(rawAdditionalParams, BLACKLISTED_AUTH_REQ_ADDITIONAL_PARAMS))
             .build();
     }
 
@@ -224,21 +224,6 @@ public class OIDCBasic extends CordovaPlugin {
         ADDITIONAL_PARAMETERS_PROMPT_PARAM,
         ADDITIONAL_PARAMETERS_RESPONSE_MODE_PARAM
     };
-
-    private Map<String, String> toAppAuthAdditionalAuthReqParams(JSONObject rawAdditionalParams) throws JSONException {
-        Map<String, String> out = toAppAuthAdditionalParams(rawAdditionalParams, BLACKLISTED_AUTH_REQ_ADDITIONAL_PARAMS);
-        // Surprisingly, the current release version of AppAuth-Android (0.7.1) doesn't
-        // generate nonce or even have a dedicated AuthorizationRequest field for it, although
-        // current master branch does both. See
-        // https://github.com/openid/AppAuth-Android/blob/0.7.1/library/java/net/openid/appauth/AuthorizationRequest.java
-        // (0.7.1) vs
-        // https://github.com/openid/AppAuth-Android/blob/master/library/java/net/openid/appauth/AuthorizationRequest.java
-        // (master) and search "nonce" to see the difference.
-        // So, for now, we'll generate nonce ourselves, using the same method that AppAuth-Android
-        // master branch does, and add it as an additional param.
-        out.put(QUERY_KEY_NONCE, generateRandomString(16));
-        return out;
-    }
 
     private class AuthorizationRequestFlow extends ExternalUserAgentFlow {
         public final AuthorizationRequest request;
