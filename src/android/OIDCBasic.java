@@ -293,7 +293,7 @@ public class OIDCBasic extends CordovaPlugin {
             .put("state",                      jsonForNullable(request.state))
             // For now, get nonce from additionalParameters. See comment in
             // toAppAuthAdditionalAuthReqParams above.
-            .put("nonce",                      jsonForNullable(request.additionalParameters.get(QUERY_KEY_NONCE)))
+			.put("nonce",                      jsonForNullable(request.nonce))
             .put("codeVerifier",               jsonForNullable(request.codeVerifier))
             .put("codeChallenge",              jsonForNullable(request.codeVerifierChallenge))
             .put("codeChallengeMethod",        jsonForNullable(request.codeVerifierChallengeMethod))
