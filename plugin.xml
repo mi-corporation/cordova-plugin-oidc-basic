@@ -54,7 +54,7 @@
 
         <config-file target="AndroidManifest.xml" parent="/manifest/application">
             <!-- Enable AppAuth-Android to handle OIDC redirects -->
-            <activity android:name="net.openid.appauth.RedirectUriReceiverActivity" tools:node="replace" xmlns:tools="http://schemas.android.com/tools">
+            <activity android:name="net.openid.appauth.RedirectUriReceiverActivity" android:exported="true" tools:node="replace" xmlns:tools="http://schemas.android.com/tools">
                 <!-- Support redirect using simple custom URL scheme via ANDROID_REDIRECT_SCHEME variable. -->
                 <intent-filter>
                     <action android:name="android.intent.action.VIEW"/>
