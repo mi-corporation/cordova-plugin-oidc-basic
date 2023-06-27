@@ -78,7 +78,7 @@
 
         <source-file src="src/android/OIDCBasic.java" target-dir="src/com/mico/cordova/plugin/oidc/basic"/>
 
-        <framework src="net.openid:appauth:0.7+"/>
+        <framework src="net.openid:appauth:0.11.1"/>
     </platform>
 
     <!-- windows -->
