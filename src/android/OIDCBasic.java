@@ -289,7 +289,7 @@ public class OIDCBasic extends CordovaPlugin {
             .put("scope",                      jsonForNullable(request.scope))
             .put("redirectUrl",                jsonForNullable(request.redirectUri == null ? null : request.redirectUri.toString()))
             .put("state",                      jsonForNullable(request.state))
-            .put("nonce",                      jsonForNullable(request.nonce))
+            // .put("nonce",                      jsonForNullable(request.nonce))
             .put("codeVerifier",               jsonForNullable(request.codeVerifier))
             .put("codeChallenge",              jsonForNullable(request.codeVerifierChallenge))
             .put("codeChallengeMethod",        jsonForNullable(request.codeVerifierChallengeMethod))
