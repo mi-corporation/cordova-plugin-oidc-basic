@@ -38,7 +38,14 @@
         </config-file>
         <header-file src="src/ios/OIDCBasic.h" />
         <source-file src="src/ios/OIDCBasic.m" />
-        <framework src="AppAuth" type="podspec" spec="~> 1.3.0" />
+        <podspec>
+            <config>
+                <source url="https://cdn.cocoapods.org/" />
+            </config>
+            <pods use-frameworks="false">
+                <pod name="AppAuth" spec="~> 1.6.1" />
+            </pods>
+        </podspec>
     </platform>
 
     <!-- android -->
