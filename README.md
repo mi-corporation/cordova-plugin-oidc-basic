@@ -96,8 +96,7 @@ Use `presentEndSessionRequest`.
 
     See https://openid.net/specs/openid-connect-session-1_0.html#RPLogout.
 
-    Supported on iOS and Windows. *Not supported on Android* (due to missing AppAuth-Android support,
-    see https://github.com/openid/AppAuth-Android/issues/374).
+    Supported on iOS, Windows and Android.
 
 This plugin does not (and likely will not) provide APIs to perform a token request as part of the
 authorization code or hybrid flows or validate the OpenID Connect ID token returned from a token request or

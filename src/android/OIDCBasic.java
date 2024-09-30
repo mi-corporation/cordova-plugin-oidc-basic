@@ -18,6 +18,8 @@ import net.openid.appauth.AuthorizationRequest;
 import net.openid.appauth.AuthorizationResponse;
 import net.openid.appauth.AuthorizationService;
 import net.openid.appauth.AuthorizationServiceConfiguration;
+import net.openid.appauth.EndSessionRequest;
+import net.openid.appauth.EndSessionResponse;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
@@ -42,7 +44,12 @@ public class OIDCBasic extends CordovaPlugin {
     private static final String ADDITIONAL_PARAMETERS_RESPONSE_MODE_PARAM = "response_mode";
     private static final String CONFIGURATION_PARAM = "configuration";
     private static final String CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM = "authorizationEndpoint";
+    private static final String CONFIGURATION_TOKEN_ENDPOINT_PARAM = "tokenEndpoint";
+    private static final String CONFIGURATION_END_SESSION_ENDPOINT_PARAM = "endSessionEndpoint";
     private static final String CLIENT_ID_PARAM = "clientId";
+    private static final String ID_TOKEN_HINT = "idTokenHint";
+    private static final String POST_LOGOUT_REDIRECT_URL = "postLogoutRedirectUrl";
+
     private static final String REDIRECT_URL_PARAM = "redirectUrl";
     private static final String RESPONSE_TYPE_PARAM = "responseType";
     private static final String SCOPE_PARAM = "scope";
@@ -266,6 +273,49 @@ public class OIDCBasic extends CordovaPlugin {
         }
     }
 
+    private class EndSessionRequestFlow extends ExternalUserAgentFlow {
+        public final EndSessionRequest request;
+        public final AuthorizationService authService;
+
+        public EndSessionRequestFlow(EndSessionRequest request, AuthorizationService authService, CallbackContext callbackContext) {
+            super(authService.getEndSessionRequestIntent(request), callbackContext);
+            this.request = request;
+            this.authService = authService;
+        }
+
+        @Override
+        public void finish(Intent data) throws JSONException {
+            // Instances of AuthorizationService must be manually disposed.
+            if (authService != null) authService.dispose();
+            EndSessionResponse resp = EndSessionResponse.fromIntent(data);
+            if (resp != null) {
+                LOG.d(LOG_TAG, "End Session success response");
+                JSONObject json = jsonForSuccessEndSessionResponse(resp);
+                callbackContext.success(json);
+            } else {
+                AuthorizationException ex = AuthorizationException.fromIntent(data);
+                callbackContext.error("End Session error response: " + ex.getMessage());
+            }
+        }
+    }
+
+    private JSONObject jsonForSuccessEndSessionResponse(EndSessionResponse response) throws JSONException {
+        JSONObject request = jsonForReturnedEndSessionRequest(response.request);
+        return new JSONObject()
+            .put("request",                request)
+            .put("state",                  jsonForNullable(response.state));
+    }
+
+    private JSONObject jsonForReturnedEndSessionRequest(EndSessionRequest request) throws JSONException {
+        if (request == null) return null;
+        return new JSONObject()
+            .put("idTokenHint",               jsonForNullable(request.idTokenHint))
+            .put("postLogoutRedirectUrl",     jsonForNullable(request.postLogoutRedirectUri))
+            .put("state",                     jsonForNullable(request.state))
+            .put("additionalParameters",      jsonForMap(request.additionalParameters));
+
+    }
+
     private JSONObject jsonForSuccessfulAuthorizationResponse(AuthorizationResponse response) throws JSONException {
         return new JSONObject()
             .put("request",                      jsonForNullable(jsonForReturnedAuthorizationRequest(response.request)))
@@ -383,14 +433,68 @@ public class OIDCBasic extends CordovaPlugin {
     }
 
     private void presentEndSessionRequest(JSONArray args, CallbackContext callbackContext) throws JSONException {
-        // Currently, AppAuth-Android just doesn't support sending end session requests.
-        // See https://github.com/openid/AppAuth-Android/issues/374 (opened 7/17/2018).
-        // So we just won't attempt to support presentEndSessionRequest on Android.
-        JSONObject error = new JSONObject()
-            .put("type",        UNSENDABLE_REQUEST)
-            .put("message",     "End session requests aren't supported on Android b/c AppAuth-Android support is missing. See https://github.com/openid/AppAuth-Android/issues/374")
-            .put("details",     "End session requests aren't supported on Android b/c AppAuth-Android support is missing. See https://github.com/openid/AppAuth-Android/issues/374");
-        callbackContext.error(error);
+        if (args == null || args.length() == 0) {
+            callbackContext.error("Invalid arguments");
+            return;
+        }
+        JSONObject reqParams = args.getJSONObject(0);
+
+        List<String> validationErrors = new ArrayList<>();
+        if (!validateEndSessionRequestParams(reqParams, validationErrors)) {
+            LOG.e(LOG_TAG, "Invalid request params: %s", TextUtils.join(", ", validationErrors));
+            JSONObject json = jsonForRequestValidationErrors(validationErrors);
+            callbackContext.error(json);
+            return;
+        }
+
+        JSONObject configParams = reqParams.getJSONObject(CONFIGURATION_PARAM);
+        Uri authorizationEndpoint = Uri.parse(configParams.getString(CONFIGURATION_AUTHORIZATION_ENDPOINT_PARAM));
+        Uri tokenEndpoint = Uri.parse(configParams.getString(CONFIGURATION_TOKEN_ENDPOINT_PARAM));
+        Uri endSessionEndpoint = Uri.parse(configParams.getString(CONFIGURATION_END_SESSION_ENDPOINT_PARAM));
+
+        AuthorizationServiceConfiguration config = new AuthorizationServiceConfiguration(authorizationEndpoint, tokenEndpoint, null, endSessionEndpoint);
+
+        LOG.d(LOG_TAG, "Preparing AppAuth end session request");
+
+        EndSessionRequest endSessionRequest =
+            new EndSessionRequest.Builder(config)
+                .setIdTokenHint(reqParams.getString(ID_TOKEN_HINT))
+                .setPostLogoutRedirectUri(Uri.parse(reqParams.getString(POST_LOGOUT_REDIRECT_URL)))
+                .build();
+
+        AuthorizationService authService = new AuthorizationService(cordova.getContext());
+        launchExternalUserAgentFlow(new EndSessionRequestFlow(endSessionRequest, authService, callbackContext));
+    }
+
+    private boolean validateEndSessionRequestParams(JSONObject reqParams, List<String> errors) throws JSONException {
+        int initSize = errors.size();
+        if (reqParams.isNull(CONFIGURATION_PARAM)) {
+            errors.add(String.format("%s param is required", CONFIGURATION_PARAM));
+        } else {
+            if (!(reqParams.get(CONFIGURATION_PARAM) instanceof JSONObject)) {
+                errors.add(String.format("%s param must be a JS object", CONFIGURATION_PARAM));
+            } else {
+                JSONObject configParams = reqParams.getJSONObject(CONFIGURATION_PARAM);
+                if (configParams.isNull(CONFIGURATION_END_SESSION_ENDPOINT_PARAM)) {
+                    errors.add(String.format("%s.%s param is required", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM));
+                } else if (!(configParams.get(CONFIGURATION_END_SESSION_ENDPOINT_PARAM) instanceof String)) {
+                    errors.add(String.format("%s.%s param must be a string", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM));
+                } else if (!isValidWebUrl(configParams.getString(CONFIGURATION_END_SESSION_ENDPOINT_PARAM))) {
+                    errors.add(String.format("%s.%s param must be a valid URL", CONFIGURATION_PARAM, CONFIGURATION_END_SESSION_ENDPOINT_PARAM));
+                }
+            }
+        }
+        if (reqParams.isNull(ID_TOKEN_HINT)) {
+            errors.add(String.format("%s param is required", ID_TOKEN_HINT));
+        } else if (!(reqParams.get(ID_TOKEN_HINT) instanceof String)) {
+            errors.add(String.format("%s param must be a string", ID_TOKEN_HINT));
+        }
+        if (!reqParams.isNull(POST_LOGOUT_REDIRECT_URL)) {
+            if (!(reqParams.get(POST_LOGOUT_REDIRECT_URL) instanceof String)) {
+                errors.add(String.format("%s param must be a string", POST_LOGOUT_REDIRECT_URL));
+            }
+        }
+        return errors.size() == initSize;
     }
 
     // NOTE: If we AppAuth-Android someday adds end session support, then we'll wanna add
