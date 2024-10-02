@@ -54,6 +54,10 @@ static BOOL OpenURLFallback(id self, SEL _cmd, UIApplication *app, NSURL *url, N
 +(void)load {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+        // do this only if IOS version is less than 11
+        if (@available(iOS 11, *)) {
+            return;
+        }
         Class class = [self class];
         SEL oidcBasicSel = @selector(oidcBasicApplication:openURL:options:);
         Method override = class_getInstanceMethod(class, oidcBasicSel);
